@@ -17,6 +17,18 @@ let myUser : User = {
     isActive: false
 }
 
+
+type cardNumber ={
+    cardnumber: string
+
+}
+type cardDate = {
+    cardDate:  string
+}
+
+type cardDetails = cardNumber & cardDate & {
+    cvv: number
+}
 myUser.name = "Harikesh"
 //  possible in this
 
