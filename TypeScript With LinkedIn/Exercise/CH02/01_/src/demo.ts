@@ -6,3 +6,5 @@ let b : string[]
 
 
 b = "harikesh" as any
+console.log(b);
+
