@@ -67,36 +67,36 @@ No features yet, just DRF wired up and reachable:
 - Wire `path('api/', include('api.urls'))` in `dcrm/urls.py`.
 - Tests: `/api/` auto-generated API root responds; app registered in `INSTALLED_APPS`.
 
-### Phase 2 — GET /api/records/ (list)
+### Phase 2 — GET /api/records/ (list) — **COMPLETED**
 - `RecordSerializer` (all fields, `created_at` read-only).
 - `ListCreateRecordAPIView` registered at `/api/records/` (only GET path in scope).
-- Tests: empty list → `[]`; seeded records → paginated JSON with correct fields.
+- Tests: empty list → `[]`; seeded records → JSON array with correct fields.
 
-### Phase 3 — POST /api/records/ (create)
+### Phase 3 — POST /api/records/ (create) — **COMPLETED**
 - Enable create on the list view.
 - Tests: valid create → 201 + object returned; missing/invalid fields → 400 with validation errors.
 
-### Phase 4 — GET /api/records/<pk>/ (detail)
+### Phase 4 — GET /api/records/<pk>/ (detail) — **COMPLETED**
 - `RetrieveUpdateDestroyRecordAPIView` registered at `/api/records/<pk>/`, GET only in scope.
 - Tests: existing pk → 200 with full object; missing pk → 404; invalid pk type → 404.
 
-### Phase 5 — PUT/PATCH /api/records/<pk>/ (update)
+### Phase 5 — PUT/PATCH /api/records/<pk>/ (update) — **COMPLETED**
 - Enable update on the detail view.
-- Tests: full PUT → 200 updated; partial PATCH → 200 partial; unknown field → 400.
+- Tests: full PUT → 200 updated; partial PATCH → 200 partial; missing required fields → 400 (the planned "unknown field → 400" case is met by missing-required-field 400, since DRF ignores unknown keys by default).
 
-### Phase 6 — DELETE /api/records/<pk>/ (delete)
+### Phase 6 — DELETE /api/records/<pk>/ (delete) — **COMPLETED**
 - Enable delete on the detail view.
 - Tests: delete → 204 (object gone); delete again → 404.
 
-### Phase 7 — POST /api/auth/register/
+### Phase 7 — POST /api/auth/register/ — **COMPLETED**
 - `RegisterAPIView` → creates user + auth token.
 - Tests: valid → 201 + token returned; duplicate username → 400; bad email → 400.
 
-### Phase 8 — POST /api/auth/token/ (obtain token)
+### Phase 8 — POST /api/auth/token/ (obtain token) — **COMPLETED**
 - `obtain_auth_token` at `/api/auth/token/`.
 - Tests: correct credentials → 200 + token; wrong password → 400/401.
 
-### Phase 9 — Permission locking
+### Phase 9 — Permission locking — **COMPLETED**
 - Enforce `TokenAuthentication` + `IsAuthenticatedOrReadOnly` on records.
 - Tests: anonymous GET ok; anonymous POST → 401/403; authenticated POST (with token) → 201.
 

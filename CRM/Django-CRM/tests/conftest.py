@@ -15,3 +15,9 @@ def test_user(db, django_user_model):
 @pytest.fixture
 def api_client():
     return APIClient()
+
+
+@pytest.fixture
+def auth_client(api_client, test_user):
+    api_client.force_authenticate(user=test_user)
+    return api_client
