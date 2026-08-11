@@ -1,0 +1,65 @@
+# CHANGELOG — Django CRM Next.js Frontend
+
+> Single changelog for all phase changes. Created once; append per phase. Follows `PLAN.md` (one phase at a time).
+
+## Phase 0 — Backend API additions (2026-08-11)
+
+**Status:** COMPLETED · **Gate:** `python -m pytest` green
+
+### Files touched
+
+- `api/views.py`
+- `api/urls.py`
+- `api/serializers.py`
+- `tests/conftest.py`
+- `tests/test_stats.py` (new)
+- `tests/test_auth.py`
+- `tests/test_records.py`
+- `mdfiles/CHANGELOG.md` (created)
+- `mdfiles/PLAN.md`
+- `mdfiles/DECISIONS.md`
+- `mdfiles/FEATURES.md`
+- `mdfiles/README.md`
+
+### Changes made
+
+- **Filters on `GET /api/records/`** — added DRF `SearchFilter` (`?search=` on `first_name`/`last_name`/`email`) and `OrderingFilter` (`?ordering=` over all fields) to `ListCreateRecordAPIView`; added exact `?state=` filter (case-insensitive) via a `get_queryset()` override (D-08). Response stays a plain JSON array unless paginated.
+- **Opt-in pagination** — new `RecordPageNumberPagination` (`page_size=20`, `page_size_query_param=page_size`). `GET /api/records/?page=1` returns `{count, next, previous, results}`; without `?page=` the response remains the legacy plain array (D-07).
+- **`GET /api/stats/`** — new `StatsAPIView` (token-gated, D-06) returning `total_records`, `records_this_week` (UTC week starting Monday), `records_this_month` (UTC calendar month), `distinct_states`, `by_state` (count per state, descending), `newest_record` (full object or `null`).
+- **`GET /api/auth/me/`** — new `MeAPIView` (token-gated) returning `{id, username, email}` via a new `UserSerializer`.
+- **Tests** — added `tests/test_stats.py`; extended `tests/test_auth.py` with `/api/auth/me/` cases; extended `tests/test_records.py` with search/state/ordering/pagination cases; added a `make_record` factory fixture to `tests/conftest.py`.
+
+### Verification
+
+- `python -m pytest` — all tests pass (existing 28 + new tests).
+
+## Phase 1 — Frontend scaffold (2026-08-11)
+
+**Status:** COMPLETED · **Gate:** `npm run build` passes; shell renders
+
+### Files touched
+
+- `frontend/package.json` / `package-lock.json` (added Primer deps, removed Tailwind)
+- `frontend/next.config.ts` (env: `DJANGO_API_URL`)
+- `frontend/postcss.config.mjs` (emptied — no Tailwind plugin)
+- `frontend/src/app/records/page.tsx` (new stub)
+- `frontend/src/app/records/new/page.tsx` (new stub)
+- `frontend/src/components/crm/stub-page.tsx` (new)
+- `frontend/src/components/crm/app-sidebar.tsx` (reworked nav)
+- `frontend/public/placeholder.svg` (new — fixes broken Avatar src)
+- `mdfiles/PLAN.md`
+- `mdfiles/DECISIONS.md` (D-10)
+- `mdfiles/FEATURES.md`
+
+### Changes made
+
+- **Design system** — adopted GitHub Primer (D-10, supersedes D-04): installed `@primer/react`, `@primer/octicons-react`, `styled-components`; removed `tailwindcss` / `@tailwindcss/postcss` and cleared `postcss.config.mjs`. Primer's `"use client"` + styled-components registry pattern matches the Next.js docs.
+- **Shell nav** — `app-sidebar` reworked to the Phase 1 spec: Dashboard `/dashboard`, Records `/records`, Add Record `/records/new`, Logout (placeholder → `/login` until Phase 2).
+- **Stub routes** — `/records` and `/records/new` render a shared `StubPage` (client component, matching the dashboard shell) so nav never 404s; real CRUD UI is Phase 4.
+- **Assets** — added `public/placeholder.svg` (contacts-table Avatar previously 404'd).
+- **Config** — `next.config.ts` exposes `DJANGO_API_URL` (default `http://localhost:8000`; used from Phase 2).
+- **Build fix** — `stub-page.tsx` marked `'use client'` after prerender failed with "Element type is invalid … got: undefined" (slot-based Primer components can't render from a Server Component).
+
+### Verification
+
+- `npm run build` — passes; `/`, `/login`, `/dashboard`, `/records`, `/records/new` prerender.

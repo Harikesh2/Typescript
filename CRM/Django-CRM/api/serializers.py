@@ -14,6 +14,12 @@ class RecordSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at',)
 
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = ('id', 'username', 'email')
+
+
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField(required=False, allow_blank=True)

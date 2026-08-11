@@ -77,3 +77,36 @@ def test_token_wrong_password_400(api_client, db, test_user):
 
     errors = response.json()
     assert 'non_field_errors' in errors
+
+
+def test_me_url_resolves():
+    assert resolve('/api/auth/me/').func.__module__.startswith('api.views')
+
+
+def test_me_anonymous_forbidden(api_client):
+    response = api_client.get('/api/auth/me/')
+    assert response.status_code == 403
+
+
+def test_me_authenticated_returns_user(auth_client, test_user):
+    response = auth_client.get('/api/auth/me/')
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data == {
+        'id': test_user.pk,
+        'username': 'testuser',
+        'email': 'test@example.com',
+    }
+
+
+def test_me_with_token_header_200(api_client, db, test_user):
+    token, _ = Token.objects.get_or_create(user=test_user)
+    api_client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+    response = api_client.get('/api/auth/me/')
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data['username'] == 'testuser'
+    assert data['email'] == 'test@example.com'

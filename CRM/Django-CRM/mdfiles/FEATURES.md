@@ -22,6 +22,12 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 8 | Register | `POST /api/auth/register/` | ✅ | 7 | 2026-08-10 | Creates User + token; AllowAny |
 | 9 | Obtain token | `POST /api/auth/token/` | ✅ | 8 | 2026-08-10 | 200 + token / 400 bad creds |
 | 10 | Permission locking | All record writes + real-token header tests | ✅ | 9 | 2026-08-10 | Anonymous POST/DELETE → 403 |
+| 11 | Search & filters | `GET /api/records/?search=&ordering=&state=` | ✅ | 0 | 2026-08-11 | Search name/email; state exact (ci); sort |
+| 12 | Opt-in pagination | `GET /api/records/?page=` | ✅ | 0 | 2026-08-11 | `{count,next,previous,results}`; array without `?page=` |
+| 13 | Stats | `GET /api/stats/` | ✅ | 0 | 2026-08-11 | Token-gated aggregates for dashboard |
+| 14 | Current user | `GET /api/auth/me/` | ✅ | 0 | 2026-08-11 | `{id, username, email}` for navbar chip |
+| 15 | Frontend scaffold | Primer shell: sidebar + topbar, `/login`, `/dashboard` | ✅ | 1 | 2026-08-11 | Primer design (D-10); mock data; UI-only login |
+| 16 | Records stub routes | `/records`, `/records/new` | ✅ | 1 | 2026-08-11 | Placeholders; CRUD UI in Phase 4 |
 
 ## Implemented features (detailed)
 
@@ -41,7 +47,7 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 
 | Method | Endpoint | Behavior | Errors |
 |--------|----------|----------|--------|
-| GET | `/api/records/` | `ListCreateRecordAPIView` → plain JSON array | — |
+| GET | `/api/records/` | `ListCreateRecordAPIView` → plain JSON array; filters `?search=`, `?state=`, `?ordering=` | `404` invalid `?page=` |
 | POST | `/api/records/` | `201` created record | `400` missing/invalid fields; `403` anonymous |
 | GET | `/api/records/<pk>/` | `RetrieveUpdateDestroyRecordAPIView` → `200` full object | `404` missing / invalid pk |
 | PUT | `/api/records/<pk>/` | `200` full replace (all fields required) | `400` missing required fields; `403` anonymous |
@@ -49,6 +55,20 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 | DELETE | `/api/records/<pk>/` | `204` object removed | `404` missing pk; `403` anonymous |
 
 `RecordSerializer` exposes all model fields with `created_at` read-only. Pseudo-requirement notes kept from the phase log: DRF's `ModelSerializer` ignores unknown keys rather than rejecting them; login/automated permissions verified over real `HTTP_AUTHORIZATION: Token <key>` headers in tests.
+
+### Dashboard API (Phase 0)
+
+- **Search & filters** — `GET /api/records/?search=<term>` (icontains on `first_name`/`last_name`/`email`), `?ordering=<field|->field>` (all fields, default model order), `?state=<XX>` exact case-insensitive. Response stays a plain JSON array.
+- **Opt-in pagination** — `GET /api/records/?page=1` returns `{count, next, previous, results}` (`page_size=20`, overridable with `?page_size=`); without `?page=` the response is the legacy plain array (D-07).
+- **`GET /api/stats/`** — `StatsAPIView`, token required (D-06). Returns `total_records`, `records_this_week` (UTC Monday-based), `records_this_month` (UTC calendar month), `distinct_states`, `by_state` (`[{state, count}]` desc), `newest_record` (full object or `null`).
+- **`GET /api/auth/me/`** — `MeAPIView`, token required. Returns `{id, username, email}` for the authenticated user's navbar chip.
+
+### Frontend scaffold (Phase 1)
+
+- **Primer design system** — `@primer/react` + `@primer/primitives` tokens + `styled-components` SSR registry in `frontend/src/app/layout.tsx` → `components/providers.tsx` → `styled-components-registry.tsx` (dark/night mode). Replaces the original Tailwind v4 pastel plan (D-04 → D-10).
+- **Shell** — sidebar (Dashboard `/dashboard`, Records `/records`, Add Record `/records/new`, Logout placeholder → `/login`) + topbar with user chip; shared `TopBar`/`AppSidebar` components.
+- **Routes** — `/` redirects to `/login` (UI-only placeholder, real auth is Phase 2); `/dashboard` renders mock `StatCards` + `ContactsTable` (data from `lib/contacts.ts`, real API in Phase 3); `/records` + `/records/new` are stubs via `components/crm/stub-page.tsx` (CRUD UI in Phase 4).
+- **Config** — `next.config.ts` sets `env.DJANGO_API_URL` (default `http://localhost:8000`, consumed from Phase 2).
 
 ## Planned / next features
 

@@ -1,36 +1,79 @@
-# PLAN — <feature set name>
+# PLAN — Next.js Frontend + Dashboard for Django CRM
 
-> Working plan for the next feature round. The previous plan is fully completed — see `FEATURES.md` for the record of what is implemented.
->
-> Workflow: copy this template, fill in the new plan, then execute **one phase at a time**. Mark each phase Completed below as you finish it, and log the finished work in `FEATURES.md`.
+> Working plan for the next feature round.
+
+## Workflow (strict — mandatory)
+
+1. PLAN.md is the single source of truth for the plan + phase status.
+2. Every technical decision is logged in `DECISIONS.md` with the rationale (why), date, and status.
+3. For EVERY phase, **log all changes in a single file: `CHANGELOG.md`** (create it once if it doesn't exist). Append each phase's changes with:
+   - Phase number and name
+   - Files touched
+   - Changes made
+   - Verification steps
+   Do **NOT** create separate per-phase `.md` files.
+4. Implement ONE phase at a time. Mark status in `PLAN.md`: NOT STARTED → IN PROGRESS → COMPLETED.
+5. On completion: run the phase gate, update `FEATURES.md`, then move to the next phase.
+6. Do not let a phase leak into the next. Any scope creep = new decision + new phase.
 
 ## Goal
 
-<Describe what this plan should deliver in 2-3 sentences.>
+Replace the Bootstrap/Django-template UI with a Next.js (App Router, TypeScript) frontend in `frontend/`, backed by the existing DRF API, with a light + soft pastel gradient dashboard. Auth via BFF proxy + httpOnly cookie (token never in browser JS, no CORS).
 
 ## Repo analysis (findings)
 
-- <Current stack / structure notes relevant to this plan.>
-- <Constraints: what must not change.>
+- Backend: Django 4.1 + DRF Token auth; `/api/records/` CRUD now supports search/ordering/`state` filters + opt-in `?page=` pagination (Phase 0); `/api/auth/register/`, `/api/auth/token/`, `/api/stats/`, `/api/auth/me/`.
+- `tests/test_records.py` asserts `/api/records/` returns a plain array → pagination must be opt-in (D-07).
+- No CORS middleware; not needed with BFF proxy (D-02).
+- `ALLOWED_HOSTS` covers localhost → zero backend host changes for the proxy.
+- DRF token auth is CSRF-exempt → no CSRF handling for the proxy.
+- Tests run on in-memory SQLite via `USE_SQLITE=1` (`tests/conftest.py`); must stay green.
 
 ## Decisions
 
-- <Key technical decisions.>
+See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D-01); BFF proxy + httpOnly cookie (D-02); keep legacy templates (D-03); Primer design system, superseding the original pastel plan (D-04→D-10); stats cards first, charts deferred (D-05); /api/stats/ token-gated (D-06); opt-in pagination, minimal (D-07); state filter via queryset override (D-08); stats windows UTC week/month (D-09).
 
 ## Phases
 
-Each phase = one small, independently verifiable change. Mark phase **completed** in this tracker before moving to the next.
+### Phase 0 — Backend API additions — ✅ COMPLETED (2026-08-11)
 
-### Phase 0 — <name> — **NOT STARTED**
+- Add SearchFilter/OrderingFilter + `state` filter to `ListCreateRecordAPIView` (response stays array).
+- Opt-in pagination: `{count, results}` only when `?page=` present (D-07).
+- New `GET /api/stats/` (token-gated, D-06): total_records, records_this_week, records_this_month, distinct_states, by_state, newest_record.
+- New `GET /api/auth/me/` → {id, username, email} for navbar user chip.
+- New tests (`tests/test_stats.py`, extend auth tests); update FEATURES.md.
+- **Gate:** `python -m pytest` green.
 
-- <Tasks.>
-- <Gate / verification.>
+### Phase 1 — Frontend scaffold — ✅ COMPLETED (2026-08-11)
 
-### Phase 1 — <name> — **NOT STARTED**
+- Next.js (App Router, TypeScript) app in `frontend/`; Primer design system (D-10) via `@primer/react` + `@primer/primitives` tokens + `styled-components` registry (Tailwind v4 removed).
+- Shell layout: sidebar (Dashboard, Records, Add Record, Logout) + topbar with user chip.
+- Routes: `/` → redirect `/login` (UI-only placeholder); `/dashboard` (mock stat cards + contacts table); `/records` + `/records/new` stubs. `next.config.ts` carries `DJANGO_API_URL`.
+- **Gate:** `npm run build` passes; shell renders.
 
-- <Tasks.>
-- <Gate / verification.>
+### Phase 2 — Auth (BFF proxy + cookie) — **NOT STARTED**
+
+- Route handlers: `/api/auth/login|register|logout` (register auto-login); catch-all `/api/[...path]` proxy injecting `Authorization: Token <cookie>`.
+- `middleware.ts` route protection; login + register pages (gradient hero).
+- Cookie `dcrm_token`: httpOnly, secure in prod, sameSite=lax.
+- **Gate:** login/register/logout work end-to-end; unauthenticated redirects.
+
+### Phase 3 — Dashboard (stats cards) — **NOT STARTED**
+
+- `/dashboard` fetches `/api/stats/` + recent records → KPI cards (Total, This Week, This Month, Top State) + recent-records preview.
+- **Gate:** cards show real data.
+
+### Phase 4 — Records CRUD UI — **NOT STARTED**
+
+- `/records` table: search (name/email), state filter, sort, pagination; `/records/[id]` detail; `/records/new` + `/records/[id]/edit` forms (validation + toasts); delete confirm.
+- **Gate:** full CRUD against the API.
+
+### Phase 5 — Polish, deploy, deprecate — **NOT STARTED**
+
+- `npm run build` + lint clean; pytest green; frontend Dockerfile + compose service (or Railway note).
+- Mark `website/templates` deprecated (D-03); update PLAN.md/FEATURES.md/README.md.
+- **Gate:** all checks pass; run instructions documented.
 
 ## Out of scope / handled elsewhere
 
-- <Things intentionally not covered by this plan.>
+- Charts/recharts (D-05, deferred to v2), full server-pagination rollout, dark mode, RBAC, leads/deals.

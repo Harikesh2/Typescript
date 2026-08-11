@@ -8,15 +8,17 @@ Docs: [FEATURES.md](FEATURES.md) (features implemented) · [PLAN.md](PLAN.md) (c
 
 | Method | Endpoint | Auth | Notes |
 |--------|----------|------|-------|
-| GET | `/api/records/` | public read | List records |
+| GET | `/api/records/` | public read | List records; `?search=`, `?state=`, `?ordering=`, opt-in `?page=` |
 | POST | `/api/records/` | token required | Create record |
 | GET | `/api/records/<pk>/` | public read | Record detail |
 | PUT/PATCH | `/api/records/<pk>/` | token required | Full / partial update |
 | DELETE | `/api/records/<pk>/` | token required | Delete record |
+| GET | `/api/stats/` | token required | Dashboard aggregates (total, week, month, states) |
 | POST | `/api/auth/register/` | public | Create user, returns token |
+| GET | `/api/auth/me/` | token required | Current user `{id, username, email}` |
 | POST | `/api/auth/token/` | public | Obtain token (username/password) |
 
-Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are public.
+Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are public. `/api/stats/` and `/api/auth/me/` require token auth.
 
 ## Quick start
 
