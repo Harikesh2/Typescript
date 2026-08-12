@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation';
 import {
   ActionList,
   ActionMenu,
@@ -9,7 +9,7 @@ import {
   Stack,
   Text,
   TextInput,
-} from '@primer/react'
+} from '@primer/react';
 import {
   StackIcon,
   SearchIcon,
@@ -17,10 +17,16 @@ import {
   SignOutIcon,
   PersonIcon,
   GearIcon,
-} from '@primer/octicons-react'
+} from '@primer/octicons-react';
 
 export function TopBar() {
-  const router = useRouter()
+  const router = useRouter();
+
+  async function handleSignOut() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  }
 
   return (
     <header
@@ -110,7 +116,7 @@ export function TopBar() {
                 <ActionList.Divider />
                 <ActionList.Item
                   variant="danger"
-                  onSelect={() => router.push('/login')}
+                  onSelect={handleSignOut}
                 >
                   <ActionList.LeadingVisual>
                     <SignOutIcon />
@@ -123,5 +129,5 @@ export function TopBar() {
         </Stack>
       </Stack>
     </header>
-  )
+  );
 }

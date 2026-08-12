@@ -51,7 +51,7 @@ See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D
 - Routes: `/` → redirect `/login` (UI-only placeholder); `/dashboard` (mock stat cards + contacts table); `/records` + `/records/new` stubs. `next.config.ts` carries `DJANGO_API_URL`.
 - **Gate:** `npm run build` passes; shell renders.
 
-### Phase 2 — Auth (BFF proxy + cookie) — **NOT STARTED**
+### Phase 2 — Auth (BFF proxy + cookie) — **IN PROGRESS**
 
 - Route handlers: `/api/auth/login|register|logout` (register auto-login); catch-all `/api/[...path]` proxy injecting `Authorization: Token <cookie>`.
 - `middleware.ts` route protection; login + register pages (gradient hero).

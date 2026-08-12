@@ -1,16 +1,22 @@
-'use client'
+'use client';
 
-import { useRouter } from 'next/navigation'
-import { NavList } from '@primer/react'
+import { useRouter } from 'next/navigation';
+import { NavList } from '@primer/react';
 import {
   HomeIcon,
   PeopleIcon,
   PlusIcon,
   SignOutIcon,
-} from '@primer/octicons-react'
+} from '@primer/octicons-react';
 
 export function AppSidebar() {
-  const router = useRouter()
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  }
 
   return (
     <NavList aria-label="Main">
@@ -33,12 +39,12 @@ export function AppSidebar() {
         Add Record
       </NavList.Item>
       <NavList.Divider />
-      <NavList.Item onSelect={() => router.push('/login')}>
+      <NavList.Item onSelect={handleLogout}>
         <NavList.LeadingVisual>
           <SignOutIcon />
         </NavList.LeadingVisual>
         Logout
       </NavList.Item>
     </NavList>
-  )
+  );
 }
