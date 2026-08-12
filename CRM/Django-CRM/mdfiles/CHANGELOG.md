@@ -63,3 +63,36 @@
 ### Verification
 
 - `npm run build` — passes; `/`, `/login`, `/dashboard`, `/records`, `/records/new` prerender.
+
+## Phase 2 — Auth (BFF proxy + cookie) (2026-08-13)
+
+**Status:** IN PROGRESS · **Gate:** login/register/logout work end-to-end; unauthenticated redirects
+
+### Files touched
+
+- `frontend/src/lib/auth.ts` (new)
+- `frontend/src/app/api/auth/login/route.ts` (new)
+- `frontend/src/app/api/auth/register/route.ts` (new)
+- `frontend/src/app/api/auth/logout/route.ts` (new)
+- `frontend/src/app/api/[...path]/route.ts` (new)
+- `frontend/src/proxy.ts` (new)
+- `frontend/src/app/register/page.tsx` (new)
+- `frontend/src/components/crm/auth-shell.tsx` (new)
+- `frontend/src/app/login/page.tsx` (modified)
+- `frontend/src/components/crm/app-sidebar.tsx` (modified)
+- `frontend/src/components/crm/top-bar.tsx` (modified)
+- `mdfiles/PLAN.md`
+- `mdfiles/DECISIONS.md`
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **BFF proxy + httpOnly cookie auth** — `/api/auth/login`, `/api/auth/register` (auto-login on success), `/api/auth/logout` (clears cookie); catch-all `/api/[...path]` injects `Authorization: Token <dcrm_token>` from cookie.
+- **Route protection** — `proxy.ts` guards `/dashboard`, `/records` (redirect to `/login` if no cookie) and `/login`, `/register` (redirect to `/dashboard` if cookie present).
+- **Auth pages** — `/login` (username + password) and `/register` (username + optional email + password min 8) with Primer + subtle gradient accent (D-12).
+- **Build fix #1** — `proxy.ts` exports `proxy` function (not `middleware`) per Next 16.3 Turbopack requirement.
+- **Build fix #2** — removed `duplex: 'half'` from fetch in `/api/[...path]/route.ts` (TS2769: not in `RequestInit` type; body passes as-is).
+
+### Verification
+
+- `npm run build` — pending (user runs manually); login/register/logout flow pending e2e test.

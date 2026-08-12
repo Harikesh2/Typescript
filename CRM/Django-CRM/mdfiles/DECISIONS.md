@@ -19,3 +19,6 @@
 | D-13 | 2026-08-12 | Topbar username chip deferred to Phase 3 | Keeps Phase 2 scope tight; `/api/auth/me/` exists for future use | Active |
 | D-14 | 2026-08-12 | Route protection via `proxy.ts` (not `middleware.ts`) | Next 16.3 convention; `cookies()` is async, `context.params` is a Promise, Node runtime default | Active |
 | D-15 | 2026-08-12 | Logout = client-side cookie clear (no backend endpoint) | DRF tokens don't expire; session gate is cookie presence via proxy | Active |
+| D-16 | 2026-08-13 | Register auto-login: reuse token from register response | Avoids extra round-trip; user lands directly in dashboard after signup | Active |
+| D-17 | 2026-08-13 | BFF proxy forwards `request.body` without `duplex: 'half'` | `duplex` not in TS `RequestInit`; streaming body works via default fetch behavior in Node 18+ | Active |
+| D-18 | 2026-08-13 | `proxy.ts` exports `proxy` function (not `middleware`) | Next 16.3 Turbopack requires `proxy` export; `middleware` export causes build failure | Active |

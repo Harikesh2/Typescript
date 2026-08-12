@@ -54,7 +54,7 @@ See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D
 ### Phase 2 — Auth (BFF proxy + cookie) — **IN PROGRESS**
 
 - Route handlers: `/api/auth/login|register|logout` (register auto-login); catch-all `/api/[...path]` proxy injecting `Authorization: Token <cookie>`.
-- `middleware.ts` route protection; login + register pages (gradient hero).
+- `proxy.ts` route protection; login + register pages (gradient hero).
 - Cookie `dcrm_token`: httpOnly, secure in prod, sameSite=lax.
 - **Gate:** login/register/logout work end-to-end; unauthenticated redirects.
 
