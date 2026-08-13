@@ -1,12 +1,18 @@
 'use client'
 
+import { use } from 'react'
 import { PageLayout, PageHeader, Stack, Text } from '@primer/react'
 import { TopBar } from '@/components/crm/top-bar'
 import { AppSidebar } from '@/components/crm/app-sidebar'
-import { StatCards } from '@/components/crm/stat-cards'
-import { RecentRecords } from '@/components/crm/recent-records'
+import { EditRecord } from '@/components/crm/edit-record'
 
-export default function DashboardPage() {
+export default function EditRecordPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
+
   return (
     <div style={{ minHeight: '100dvh', backgroundColor: 'var(--bgColor-inset)' }}>
       <TopBar />
@@ -18,17 +24,16 @@ export default function DashboardPage() {
           <Stack direction="vertical" gap="spacious">
             <PageHeader role="banner">
               <PageHeader.TitleArea>
-                <PageHeader.Title as="h1">Dashboard</PageHeader.Title>
+                <PageHeader.Title as="h1">Edit record</PageHeader.Title>
               </PageHeader.TitleArea>
               <PageHeader.Description>
                 <Text style={{ color: 'var(--fgColor-muted)' }}>
-                  Key metrics and your most recent records at a glance.
+                  Update the details of this record.
                 </Text>
               </PageHeader.Description>
             </PageHeader>
 
-            <StatCards />
-            <RecentRecords />
+            <EditRecord key={id} id={id} />
           </Stack>
         </PageLayout.Content>
       </PageLayout>

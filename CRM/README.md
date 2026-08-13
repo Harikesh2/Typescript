@@ -45,7 +45,7 @@ A customer relationship management application structured as a monorepo: a Djang
 | Web Server | Gunicorn (backend), Next.js (frontend) |
 | Static Files | WhiteNoise |
 | Testing | pytest, pytest-django |
-| Containerization | Docker / docker-compose (backend) |
+| Containerization | Docker / docker-compose (db + backend + frontend) |
 
 ## Project Structure
 
@@ -58,6 +58,7 @@ CRM/
 │   ├── manage.py               # Django management CLI
 │   ├── mydb.py                 # Standalone script to create the MySQL database
 │   ├── requirements.txt        # Python dependencies
+│   ├── .env.example            # Environment template
 │   ├── pytest.ini              # pytest config (dcrm.settings_test)
 │   ├── conftest.py             # Enables in-memory SQLite for tests
 │   ├── dcrm/                   # Django project configuration package
@@ -91,7 +92,9 @@ CRM/
 │       └── DECISIONS.md        # Technical decision log
 └── frontend/                   # Next.js frontend
     ├── package.json            # Next.js 16, React 19, Primer, styled-components
-    ├── next.config.ts          # env: DJANGO_API_URL
+    ├── next.config.ts          # output: 'standalone'; DJANGO_API_URL at runtime
+    ├── Dockerfile              # Multi-stage standalone image (node:22-alpine)
+    ├── .dockerignore
     ├── eslint.config.mjs
     ├── tsconfig.json
     ├── public/                 # Static assets
@@ -151,7 +154,7 @@ cd frontend
 npm install
 
 # 2. (Optional) Point the proxy at your backend if not on the default
-#    DJANGO_API_URL=http://localhost:8000 (default in next.config.ts)
+#    DJANGO_API_URL=http://localhost:8000 (runtime env, default)
 
 # 3. Run the development server
 npm run dev
@@ -161,7 +164,7 @@ The frontend is available at <http://localhost:3000>. The backend must be runnin
 
 ## Docker Deployment
 
-A `docker-compose.yml` in `Django-CRM/` runs MySQL and the Django web service together:
+A `docker-compose.yml` in `Django-CRM/` runs MySQL, the Django web service, and the Next.js frontend together:
 
 ```bash
 cd Django-CRM
@@ -170,10 +173,11 @@ docker-compose up --build
 
 This starts:
 
-- **MySQL 8.0** — with a healthcheck and a persistent `mysql_data` volume.
+- **db** — MySQL 8.0 with a healthcheck and a persistent `mysql_data` volume.
 - **web** — builds the Django app, runs migrations automatically, and serves it via Gunicorn on port 8000.
+- **frontend** — builds the Next.js standalone image and serves it on port 3000; it reaches the API at `http://web:8000`.
 
-> The Next.js frontend is not containerized yet; a frontend Dockerfile + compose service is planned (see [Roadmap](#roadmap)).
+`DJANGO_API_URL` is read at runtime (D-22), so the backend URL can be overridden without a rebuild, e.g. `docker-compose up -e DJANGO_API_URL=https://api.example.com`.
 
 ## Usage
 
@@ -200,9 +204,12 @@ Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are pub
 | `/` | Redirects to `/login` | No |
 | `/login` | Log in with username + password | No (redirects to `/dashboard` when logged in) |
 | `/register` | Create an account (auto-login on success) | No (redirects to `/dashboard` when logged in) |
-| `/dashboard` | KPI stat cards + contacts table (mock data until Phase 3) | Yes |
-| `/records` | Records list (stub until Phase 4) | Yes |
-| `/records/new` | Add-record form (stub until Phase 4) | Yes |
+| `/dashboard` | KPI stat cards + recent records (live) | Yes |
+| `/records` | Searchable / filterable / sortable records table with pagination + edit/delete | Yes |
+| `/records/new` | Create-record form | Yes |
+| `/records/[id]` | Record detail + delete | Yes |
+| `/records/[id]/edit` | Edit-record form | Yes |
+| `/reports` | Summary stats + tables (records per month, records by state) | Yes |
 
 ### Legacy Web Routes (deprecated)
 
@@ -228,7 +235,7 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 | Variable | Description | Default |
 |---|---|---|
 | `SECRET_KEY` | Django secret key | Required for production |
-| `DEBUG` | Debug mode toggle | `True` (see note below) |
+| `DEBUG` | Debug mode toggle | `True` (env-driven; see note below) |
 | `DB_NAME` | MySQL database name | — |
 | `DB_USER` | MySQL username | — |
 | `DB_PASSWORD` | MySQL password | — |
@@ -236,7 +243,7 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 | `DB_PORT` | MySQL port | `3306` |
 | `ALLOWED_HOSTS` | Allowed hostnames | Railway + localhost |
 
-> **Note:** `DEBUG` is currently hardcoded to `True` in `Django-CRM/dcrm/settings.py`. The env-driven toggle is commented out. Set it to `False` before production deployment.
+> **Note:** `DEBUG` is env-driven via the `DEBUG` variable (`True` by default in dev); see `Django-CRM/.env.example` for the template. Set it to `False` before production deployment.
 
 ### Frontend
 
@@ -244,7 +251,7 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 |---|---|---|
 | `DJANGO_API_URL` | Backend base URL used by the BFF proxy | `http://localhost:8000` |
 
-Set via `frontend/next.config.ts` (env) or `frontend/.env`.
+Read at runtime by the BFF proxy (D-22); defaults to `http://localhost:8000` and can be overridden via an environment variable (e.g. compose `DJANGO_API_URL=http://web:8000`).
 
 ## Testing
 
@@ -273,10 +280,11 @@ The project follows a phased plan tracked in `Django-CRM/mdfiles/PLAN.md`:
 
 - **Phase 0 — Backend API additions** ✅ Completed
 - **Phase 1 — Frontend scaffold** ✅ Completed
-- **Phase 2 — Auth (BFF proxy + cookie)** 🚧 In progress
-- **Phase 3 — Dashboard (real stats data)** — NOT STARTED
-- **Phase 4 — Records CRUD UI** — NOT STARTED
-- **Phase 5 — Polish, deploy, deprecate legacy UI** — NOT STARTED
+- **Phase 2 — Auth (BFF proxy + cookie)** ✅ Completed
+- **Phase 3 — Dashboard (real stats data)** ✅ Completed
+- **Phase 4 — Records CRUD UI** ✅ Completed
+- **Phase 5 — Polish, deploy, deprecate legacy UI** ✅ Completed
+- **Reporting (API + page)** ✅ Completed
 
 ## Documentation
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Stack, Text } from '@primer/react'
 import {
   PeopleIcon,
@@ -8,6 +9,7 @@ import {
   GraphIcon,
 } from '@primer/octicons-react'
 import type { Icon } from '@primer/octicons-react'
+import type { StatsData } from '@/lib/types'
 
 type Stat = {
   label: string
@@ -16,34 +18,57 @@ type Stat = {
   icon: Icon
 }
 
-const stats: Stat[] = [
-  {
-    label: 'Total contacts',
-    value: '1,284',
-    caption: '+48 this week',
-    icon: PeopleIcon,
-  },
-  {
-    label: 'Active leads',
-    value: '312',
-    caption: '86 need follow-up',
-    icon: PulseIcon,
-  },
-  {
-    label: 'Qualified',
-    value: '74',
-    caption: '+12% vs last month',
-    icon: CheckCircleIcon,
-  },
-  {
-    label: 'Pipeline value',
-    value: '$482k',
-    caption: 'Across 96 open deals',
-    icon: GraphIcon,
-  },
-]
+const numberFormat = new Intl.NumberFormat('en-US')
+
+function buildStats(data: StatsData | null): Stat[] {
+  const topState = data?.by_state?.[0]
+  return [
+    {
+      label: 'Total records',
+      value: data ? numberFormat.format(data.total_records) : '…',
+      caption: data ? 'Across all time' : 'Loading…',
+      icon: PeopleIcon,
+    },
+    {
+      label: 'This week',
+      value: data ? numberFormat.format(data.records_this_week) : '…',
+      caption: data ? 'Created since Monday (UTC)' : 'Loading…',
+      icon: PulseIcon,
+    },
+    {
+      label: 'This month',
+      value: data ? numberFormat.format(data.records_this_month) : '…',
+      caption: data ? 'Created this calendar month' : 'Loading…',
+      icon: CheckCircleIcon,
+    },
+    {
+      label: 'Top state',
+      value: data ? (topState ? topState.state : '—') : '…',
+      caption: data
+        ? topState
+          ? `${numberFormat.format(topState.count)} records`
+          : 'No records yet'
+        : 'Loading…',
+      icon: GraphIcon,
+    },
+  ]
+}
 
 export function StatCards() {
+  const [data, setData] = useState<StatsData | null>(null)
+
+  useEffect(() => {
+    fetch('/api/stats/')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load stats')
+        return res.json()
+      })
+      .then(setData)
+      .catch(() => setData(null))
+  }, [])
+
+  const stats = buildStats(data)
+
   return (
     <div
       style={{

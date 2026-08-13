@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 import { COOKIE_NAME, getDjangoApiUrl } from '@/lib/auth';
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  const resolvedParams = await params;
-  const path = resolvedParams.path.join('/');
+  await params;
+  const path = request.nextUrl.pathname.replace(/^\/api\//, '');
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 

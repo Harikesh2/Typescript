@@ -28,8 +28,22 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 14 | Current user | `GET /api/auth/me/` | ✅ | 0 | 2026-08-11 | `{id, username, email}` for navbar chip |
 | 15 | Frontend scaffold | Primer shell: sidebar + topbar, `/login`, `/dashboard` | ✅ | 1 | 2026-08-11 | Primer design (D-10); mock data; UI-only login |
 | 16 | Records stub routes | `/records`, `/records/new` | ✅ | 1 | 2026-08-11 | Placeholders; CRUD UI in Phase 4 |
-| 17 | Reports API | `GET /api/reports/` | 🚧 | — | 2026-08-13 | Token-gated aggregates; monthly + state breakdown |
-| 18 | Reports page | `/reports` | 🚧 | — | 2026-08-13 | Stat cards + DataTable views; sidebar link |
+| 17 | Reports API | `GET /api/reports/` | ✅ | — | 2026-08-13 | Token-gated aggregates; monthly + state breakdown |
+| 18 | Reports page | `/reports` | ✅ | — | 2026-08-13 | Stat cards + DataTable views; sidebar link |
+| 19 | BFF auth handlers | `/api/auth/login`, `/register`, `/logout` + catch-all `/api/[...path]` proxy | ✅ | 2 | 2026-08-13 | Token in httpOnly cookie; register auto-login; proxy injects `Authorization` |
+| 20 | Cookie session | `dcrm_token` httpOnly, secure in prod, sameSite=lax | ✅ | 2 | 2026-08-13 | Never exposed to browser JS (D-02) |
+| 21 | Route protection | `proxy.ts` `proxy` export | ✅ | 2 | 2026-08-13 | Unauthenticated → `/login?next=`; authenticated on auth pages → `/dashboard` |
+| 22 | Dashboard KPI cards | `/dashboard` via `/api/stats/` | ✅ | 3 | 2026-08-13 | Total / This week / This month / Top state cards with live data |
+| 23 | Recent records preview | `/dashboard` via `/api/records/?ordering=-created_at` | ✅ | 3 | 2026-08-13 | 5 latest records; Name/Email/City/State/Created |
+| 24 | Records list UI | `/records` via `/api/records/` | ✅ | 4 | 2026-08-13 | Search/state filter/server sort + pagination + edit/delete |
+| 25 | Record create form | `/records/new` → `POST /api/records/` | ✅ | 4 | 2026-08-13 | Shared form; field-keyed errors; redirect to detail |
+| 26 | Record detail | `/records/[id]` via `GET /api/records/<pk>/` | ✅ | 4 | 2026-08-13 | All fields; edit + confirmed delete; 404 state |
+| 27 | Record edit form | `/records/[id]/edit` → `PATCH /api/records/<pk>/` | ✅ | 4 | 2026-08-13 | Prefilled shared form; redirect to detail |
+| 28 | Frontend container | `frontend/Dockerfile` + compose `frontend` service | ✅ | 5 | 2026-08-13 | Multi-stage `node:22-alpine`; `output: 'standalone'`; non-root |
+| 29 | Runtime `DJANGO_API_URL` | BFF proxy reads `process.env` at runtime | ✅ | 5 | 2026-08-13 | D-22; overridable without rebuild (e.g. compose `http://web:8000`) |
+| 30 | DEBUG env toggle | `dcrm/settings.py` | ✅ | 5 | 2026-08-13 | `os.environ.get('DEBUG', 'True')`; `.env.example` template |
+| 31 | CI frontend job | `.github/workflows/ci.yml` | ✅ | 5 | 2026-08-13 | `npm ci` + `npm run lint` + `npm run build`; `CRM/frontend/**` paths |
+| 32 | Legacy UI deprecated | `website/templates/base.html` | ✅ | 5 | 2026-08-13 | Deprecation banner comment (D-03) |
 
 ## Implemented features (detailed)
 
@@ -76,6 +90,31 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 
 - **`GET /api/reports/`** — `ReportAPIView`, token required. Returns `total_records`, `records_per_month` (`[{month, count}]` — `created_at` grouped by month, ascending, `month` may be `null`), `by_state` (`[{state, count}]` desc). Optional `?from=`/`?to=` ISO datetime range filters; invalid values → 400.
 - **`/reports` page** — client page in the app shell: summary stat cards (total records, months with records, distinct states) + two `DataTable` views (records per month, records by state), driven by the BFF proxy fetch to `/api/reports/`.
+
+### Frontend auth (Phase 2)
+
+- **BFF proxy + cookie session** — browser never holds the DRF token (D-02). Route handlers under `/api/auth/` exchange credentials for a token and store it in the `dcrm_token` httpOnly cookie (secure in prod, sameSite=lax, 30-day maxAge). `/api/auth/register` auto-logs-in (D-16); `/api/auth/logout` clears the cookie (D-15). The catch-all `/api/[...path]` route proxies every other `/api/*` call to Django, injecting `Authorization: Token <cookie>` (D-17).
+- **Route protection** — `src/proxy.ts` exports `proxy` (Next 16.3, D-14/D-18): unauthenticated users on `/dashboard`, `/records`, `/reports` → `/login?next=<path>`; authenticated users on `/login`/`/register` → `/dashboard`. Login honors `?next=` against an in-app allowlist (no open redirect). Status: ✅ COMPLETED (2026-08-13, `npm run build` passes).
+
+### Dashboard (Phase 3)
+
+- **KPI cards** — `StatCards` fetches `/api/stats/` through the BFF proxy and renders four live cards: Total records (`total_records`, PeopleIcon), This week (`records_this_week`, PulseIcon), This month (`records_this_month`, CheckCircleIcon), Top state (`by_state[0].state`, GraphIcon). Loading/empty states shown before data arrives. Status: ✅ COMPLETED (2026-08-13).
+- **Recent records preview** — `RecentRecords` fetches `/api/records/?ordering=-created_at` (plain-array response, D-07), slices to the 5 latest, and renders a Primer `DataTable` (Name, Email, City, State, Created). Mock `ContactsTable` no longer used on `/dashboard` but kept in place for now. Status: ✅ COMPLETED (2026-08-13).
+
+### Records CRUD UI (Phase 4)
+
+- **List** — `RecordsList` on `/records`: search `TextInput` (`?search=`, debounced), state `Select` from `/api/stats/` `by_state` (D-20), "Add record" button; Primer `DataTable` with server-side sort (`externalSorting` + `onToggleSort` → `?ordering=`, D-19) and Primer `Pagination` → `?page=` (D-07 `{count,next,previous,results}`, page_size 20); per-row edit/delete via `useConfirm`; `Blankslate` empty state. Status: ✅ COMPLETED (2026-08-13).
+- **Create/Edit form** — shared `RecordForm`: all 8 fields required with client trim/validation, backend field-keyed errors on `FormControl.Validation`, `non_field_errors` banner. Create (`POST /api/records/`) redirects to `/records/<id>`; Edit (`PATCH /api/records/<pk>/`) prefills from `/api/records/<pk>/` and redirects to the detail page. Status: ✅ COMPLETED (2026-08-13).
+- **Detail** — `RecordDetail` on `/records/[id]`: all fields in a 3-col grid, Edit + danger Delete (`useConfirm` → `DELETE` → back to `/records`), 404 `Blankslate`, load-failure `Flash`. Status: ✅ COMPLETED (2026-08-13).
+- **Shared types** — `src/lib/types.ts` (`Record`, `RecordsPage`, `RecordPayload`, `StatsData`) reused by dashboard + records components.
+
+### Polish, deploy, deprecate (Phase 5)
+
+- **Frontend container (D-23)** — `frontend/next.config.ts` sets `output: 'standalone'`; new multi-stage `frontend/Dockerfile` (node:22-alpine: `npm ci` → `npm run build` → runtime stage copying `.next/standalone` + `.next/static` + `public`, `node server.js` as non-root `nextjs` user) + `frontend/.dockerignore`. Compose gains a `frontend` service (`DJANGO_API_URL=http://web:8000`, port 3000), so `docker-compose up --build` boots db + web + frontend together.
+- **Runtime `DJANGO_API_URL` (D-22)** — build-time `env` bake removed from `next.config.ts`; the BFF proxy reads `process.env.DJANGO_API_URL` at runtime (fallback `http://localhost:8000`), so containers/deploy environments override the backend URL without a rebuild.
+- **DEBUG env toggle** — `Django-CRM/dcrm/settings.py` reads `DEBUG` from the environment (`True` default in dev); `Django-CRM/.env.example` ships the `SECRET_KEY`/`DEBUG`/`DB_*` template.
+- **CI frontend job** — `.github/workflows/ci.yml` now triggers on `CRM/frontend/**` and adds a `frontend` job (`setup-node 22` + npm cache, `npm ci`, `npm run lint`, `npm run build`).
+- **Legacy UI deprecated (D-03)** — `website/templates/base.html` carries an HTML comment marking the Bootstrap templates deprecated in favor of `/frontend`.
 
 ## Planned / next features
 

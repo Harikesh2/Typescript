@@ -30,8 +30,19 @@ services:
     env_file:
       - .env
     depends_on:
-        db:
-          condition: service_healthy
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      - DJANGO_API_URL=http://web:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - web
 
 volumes:
   mysql_data:

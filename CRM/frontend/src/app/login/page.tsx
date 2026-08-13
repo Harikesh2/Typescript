@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Button,
   Checkbox,
@@ -21,8 +21,21 @@ import {
 } from '@primer/octicons-react';
 import { AuthShell } from '@/components/crm/auth-shell';
 
-export default function LoginPage() {
+const NEXT_ALLOWLIST = ['/dashboard', '/records', '/records/new', '/reports'];
+
+function isAllowedNext(next: string | null): boolean {
+  if (!next) return false;
+  return NEXT_ALLOWLIST.some(
+    (path) => next === path || next.startsWith(`${path}/`)
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get('next');
+  const next: string =
+    nextParam && isAllowedNext(nextParam) ? nextParam : '/dashboard';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -58,7 +71,7 @@ export default function LoginPage() {
           setSubmitting(false);
           return;
         }
-        router.push('/dashboard');
+        router.push(next);
         router.refresh();
       })
       .catch(() => {
@@ -199,5 +212,13 @@ export default function LoginPage() {
         </Text>
       </Stack>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

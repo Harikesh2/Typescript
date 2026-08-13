@@ -15,11 +15,14 @@ The frontend for the Django CRM monorepo. A [Next.js](https://nextjs.org) (App R
 | `/` | Redirects to `/login` |
 | `/login` | Log in with username + password |
 | `/register` | Create an account (auto-login on success) |
-| `/dashboard` | KPI stat cards + contacts table (mock data until Phase 3) |
-| `/records` | Records list (stub until Phase 4) |
-| `/records/new` | Add-record form (stub until Phase 4) |
+| `/dashboard` | KPI stat cards + recent records (live) |
+| `/records` | Searchable / filterable / sortable records table with pagination + edit/delete |
+| `/records/new` | Create-record form |
+| `/records/[id]` | Record detail + delete |
+| `/records/[id]/edit` | Edit-record form |
+| `/reports` | Summary stats + tables (records per month, records by state) |
 
-Route protection lives in `src/proxy.ts` (Next 16 `proxy` convention, not `middleware.ts`): unauthenticated users visiting `/dashboard` or `/records` are redirected to `/login`; authenticated users visiting `/login` or `/register` are redirected to `/dashboard`.
+Route protection lives in `src/proxy.ts` (Next 16 `proxy` convention, not `middleware.ts`): unauthenticated users visiting `/dashboard`, `/records`, or `/reports` are redirected to `/login`; authenticated users visiting `/login` or `/register` are redirected to `/dashboard`.
 
 ## Auth flow
 
@@ -33,7 +36,7 @@ Route protection lives in `src/proxy.ts` (Next 16 `proxy` convention, not `middl
 |---|---|---|
 | `DJANGO_API_URL` | Backend base URL used by the BFF proxy | `http://localhost:8000` |
 
-Set via `next.config.ts` (env) or `.env`.
+Read at runtime by the BFF proxy (D-22); defaults to `http://localhost:8000`, overridable via environment variable.
 
 ## Getting Started
 

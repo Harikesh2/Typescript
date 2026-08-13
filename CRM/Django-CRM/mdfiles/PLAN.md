@@ -51,30 +51,33 @@ See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D
 - Routes: `/` → redirect `/login` (UI-only placeholder); `/dashboard` (mock stat cards + contacts table); `/records` + `/records/new` stubs. `next.config.ts` carries `DJANGO_API_URL`.
 - **Gate:** `npm run build` passes; shell renders.
 
-### Phase 2 — Auth (BFF proxy + cookie) — **IN PROGRESS**
+### Phase 2 — Auth (BFF proxy + cookie) — ✅ COMPLETED (2026-08-13)
 
 - Route handlers: `/api/auth/login|register|logout` (register auto-login); catch-all `/api/[...path]` proxy injecting `Authorization: Token <cookie>`.
 - `proxy.ts` route protection; login + register pages (gradient hero).
 - Cookie `dcrm_token`: httpOnly, secure in prod, sameSite=lax.
-- **Gate:** login/register/logout work end-to-end; unauthenticated redirects.
+- Login honors `?next=` (in-app allowlist, no open redirect).
+- **Gate:** `npm run build` passes (login/register/logout flow verified e2e).
 
-### Phase 3 — Dashboard (stats cards) — **NOT STARTED**
+### Phase 3 — Dashboard (stats cards) — ✅ COMPLETED (2026-08-13)
 
 - `/dashboard` fetches `/api/stats/` + recent records → KPI cards (Total, This Week, This Month, Top State) + recent-records preview.
-- **Gate:** cards show real data.
+- `StatCards` rewired to `/api/stats/` (People/Pulse/CheckCircle/Graph icons); new `RecentRecords` component fetches `/api/records/?ordering=-created_at` (plain-array slice of 5); dashboard header renamed "Contacts" → "Dashboard".
+- **Gate:** `npm run build` passes (verified by user); dashboard shows real data.
 
-### Phase 4 — Records CRUD UI — **NOT STARTED**
+### Phase 4 — Records CRUD UI — ✅ COMPLETED (2026-08-13)
 
 - `/records` table: search (name/email), state filter, sort, pagination; `/records/[id]` detail; `/records/new` + `/records/[id]/edit` forms (validation + toasts); delete confirm.
-- **Gate:** full CRUD against the API.
+- `records-list.tsx` (DataTable + search/state/sort via `?search=`/`?state=`/`?ordering=`, Primer `Pagination` via `?page=`, per-row edit/delete); shared `record-form.tsx` (create/edit); `record-detail.tsx` (+ ConfirmationDialog delete, D-19); state dropdown sourced from `/api/stats/` `by_state` (D-20).
+- **Gate:** `npm run build` + `npm run lint` pass; full CRUD against the API verified (user).
 
-### Phase 5 — Polish, deploy, deprecate — **NOT STARTED**
+### Phase 5 — Polish, deploy, deprecate — ✅ COMPLETED (2026-08-13)
 
 - `npm run build` + lint clean; pytest green; frontend Dockerfile + compose service (or Railway note).
 - Mark `website/templates` deprecated (D-03); update PLAN.md/FEATURES.md/README.md.
 - **Gate:** all checks pass; run instructions documented.
 
-### Reporting — API + page — **IN PROGRESS** (additional feature)
+### Reporting — API + page — ✅ COMPLETED (2026-08-13) (additional feature)
 
 - New `GET /api/reports/` (token-gated): `records_per_month` (created_at grouped by month), `by_state` (counts), `total_records`, optional `?from=`/`?to=` date-range filter.
 - Frontend `/reports` route: stat cards + `DataTable` views (monthly counts, state breakdown); sidebar link.

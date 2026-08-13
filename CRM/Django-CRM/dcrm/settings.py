@@ -7,8 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 USE_SQLITE = os.environ.get('USE_SQLITE') == '1'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-jcxge@8cwms-4-$&qia^6p+^8-qwrsw7vey#0e6e326apg3mvo')
-DEBUG = True
-#DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = [
     'delightful-insight-production.up.railway.app',
     'localhost',

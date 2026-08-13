@@ -55,11 +55,11 @@ A CRM monorepo with two apps:
 
 - Phase 0 Backend API additions — COMPLETED
 - Phase 1 Frontend scaffold — COMPLETED
-- Phase 2 Auth (BFF proxy + cookie) — IN PROGRESS
-- Phase 3 Dashboard (stats cards) — NOT STARTED
-- Phase 4 Records CRUD UI — NOT STARTED
-- Phase 5 Polish, deploy, deprecate — NOT STARTED
-- Reporting (API + page) — IN PROGRESS (additional feature on top of the plan phases)
+- Phase 2 Auth (BFF proxy + cookie) — COMPLETED
+- Phase 3 Dashboard (stats cards) — COMPLETED
+- Phase 4 Records CRUD UI — COMPLETED
+- Phase 5 Polish, deploy, deprecate — COMPLETED
+- Reporting (API + page) — COMPLETED (additional feature on top of the plan phases)
 
 ## Notable decisions (full list in DECISIONS.md)
 

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button,
-  Checkbox,
   FormControl,
   Heading,
   Link,
@@ -20,6 +19,7 @@ import {
   PersonIcon,
   StackIcon,
 } from '@primer/octicons-react';
+import { AuthShell } from '@/components/crm/auth-shell';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -73,20 +73,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--base-size-24)',
-        backgroundColor: 'var(--bgColor-inset)',
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: 400 }}>
-        <Stack direction="vertical" gap="spacious" align="center">
-          <Stack direction="vertical" gap="condensed" align="center">
-            <div
+    <AuthShell>
+      <Stack direction="vertical" gap="spacious" align="center">
+        <Stack direction="vertical" gap="condensed" align="center">
+          <div
               aria-hidden="true"
               style={{
                 display: 'flex',
@@ -217,7 +207,6 @@ export default function RegisterPage() {
             <Link href="/login">Sign in</Link>
           </Text>
         </Stack>
-      </div>
-    </main>
+    </AuthShell>
   );
 }

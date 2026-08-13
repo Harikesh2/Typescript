@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import type { NextFetchEvent, NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { COOKIE_NAME } from '@/lib/auth';
 
 const protectedPaths = ['/dashboard', '/records', '/reports'];
@@ -13,7 +13,7 @@ function isAuthPath(path: string) {
   return authPaths.some((p) => path === p || path.startsWith(p + '/'));
 }
 
-export async function proxy(request: NextRequest, event: NextFetchEvent) {
+export async function proxy(request: NextRequest) {
   const cookieStore = request.cookies;
   const token = cookieStore.get(COOKIE_NAME)?.value;
   const { pathname } = request.nextUrl;

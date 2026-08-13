@@ -14,11 +14,12 @@ Docs: [FEATURES.md](FEATURES.md) (features implemented) · [PLAN.md](PLAN.md) (c
 | PUT/PATCH | `/api/records/<pk>/` | token required | Full / partial update |
 | DELETE | `/api/records/<pk>/` | token required | Delete record |
 | GET | `/api/stats/` | token required | Dashboard aggregates (total, week, month, states) |
+| GET | `/api/reports/` | token required | Report aggregates: `records_per_month`, `by_state`, `total_records`; `?from=`/`?to=` range filter |
 | POST | `/api/auth/register/` | public | Create user, returns token |
 | GET | `/api/auth/me/` | token required | Current user `{id, username, email}` |
 | POST | `/api/auth/token/` | public | Obtain token (username/password) |
 
-Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are public. `/api/stats/` and `/api/auth/me/` require token auth.
+Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are public. `/api/stats/`, `/api/reports/`, and `/api/auth/me/` require token auth.
 
 ## Quick start
 
