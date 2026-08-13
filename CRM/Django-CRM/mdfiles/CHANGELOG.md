@@ -2,6 +2,68 @@
 
 > Single changelog for all phase changes. Created once; append per phase. Follows `PLAN.md` (one phase at a time).
 
+## DB schema healthcheck (D-25) (2026-08-13)
+
+**Status:** IN PROGRESS · **Gate:** `python manage.py healthcheck` exit 0 on healthy Postgres / exit 1 with a dropped table; `python -m pytest` green; `docker-compose up --build` boots with `web` healthy before `frontend`
+
+### Files touched
+
+- `Django-CRM/website/management/__init__.py` (new)
+- `Django-CRM/website/management/commands/__init__.py` (new)
+- `Django-CRM/website/management/commands/healthcheck.py` (new)
+- `Django-CRM/website/checks.py` (new)
+- `Django-CRM/website/apps.py` (`ready()` imports `website.checks`)
+- `Django-CRM/docker-compose.yml` (`web` command chain + healthcheck; `frontend` depends_on healthy)
+- `mdfiles/DECISIONS.md` (D-25)
+- `mdfiles/CHANGELOG.md`
+- `mdfiles/FEATURES.md` (feature 34)
+
+### Changes made
+
+- **`python manage.py healthcheck`** — management command (D-25): connects to the DB, checks all migrations are applied (`MigrationExecutor` plan over the graph leaf nodes), and introspects `connection.introspection.table_names()` against every model `_meta.db_table` in `INSTALLED_APPS` (deduped — proxy models share a table). Prints a report and exits `0`/`1`. Shared logic lives in `website/checks.py` (`verify_schema()`).
+- **System check** — `website/checks.py` registers `db_schema_check`, so `runserver`/`manage.py check` surface schema problems at startup. **Warning level (D-25 rationale)**: Django runs system checks *before* applying migrations, so Critical would block `migrate` on a fresh DB (chicken-and-egg). The hard fail-fast gate is the command exit code + compose healthcheck. Skipped entirely when `USE_SQLITE=1` (pytest stays green). **Django 6.1 wiring** — app `checks.py` modules are no longer auto-imported by `Apps.populate()` (removed `import_checks()`), so `website/apps.py` `ready()` explicitly imports `website.checks`; and the check is registered untagged (`@checks.register`, not `Tags.database`) because `run_checks()` skips database-tagged checks under `runserver` (no DB alias passed).
+- **Compose gate** — `web` command chain is now `python manage.py migrate && python manage.py healthcheck && gunicorn …` (migrate creates, healthcheck verifies, server refuses to start on failure); `web` gets a `healthcheck: python manage.py healthcheck` probe; `frontend` `depends_on: web: condition: service_healthy` so the UI only starts once the schema is verified.
+
+### Verification
+
+- `USE_SQLITE=1 python3 manage.py healthcheck` (empty DB) — ✅ correctly fails: unapplied migrations + missing tables listed, exit 1.
+- `USE_SQLITE=1 python3 manage.py healthcheck` (after `migrate`, same process) — ✅ `OK: migrations applied and all model tables exist`, exit 0.
+- System check registration — ✅ `db_schema_check` registered via `apps.py` `ready()`; fires 2 Warnings on a broken schema, 0 issues under `USE_SQLITE=1` (sandbox-verified).
+- `python -m pytest` — ⏳ pending (user runs gate).
+- `python manage.py healthcheck` vs Postgres (healthy / dropped table) — ⏳ pending (user runs gate).
+- `docker-compose up --build` — ⏳ pending (user runs gate).
+
+
+## PostgreSQL runtime DB (2026-08-13)
+
+**Status:** COMPLETED · **Gate:** `python -m pytest` green; `python manage.py migrate` + `runserver` against Postgres; `docker-compose up --build` boots db + web + frontend
+
+### Files touched
+
+- `Django-CRM/.env` (MySQL → PostgreSQL values; `DB_HOST=localhost`, `DB_PORT=5432`)
+- `Django-CRM/.env.example` (same keys, `DB_PORT=5432`)
+- `Django-CRM/dcrm/settings.py` (`ENGINE` → `django.db.backends.postgresql`; `DB_PORT` default `5432`; `load_dotenv(BASE_DIR / '.env')` + `python-dotenv` so local `runserver` reads `.env`)
+- `Django-CRM/requirements.txt` (`mysqlclient` → `psycopg[binary]`; added `python-dotenv`)
+- `Django-CRM/Dockerfile` (`default-libmysqlclient-dev` → `libpq-dev`)
+- `Django-CRM/docker-compose.yml` (`mysql:8.0` → `postgres:16`; `POSTGRES_*` env; port `5432`; `pg_isready` healthcheck; volume `postgres_data`)
+- `README.md` (Docker + config table → PostgreSQL / 5432)
+- `mdfiles/DECISIONS.md` (D-24)
+- `mdfiles/CHANGELOG.md`
+- `mdfiles/FEATURES.md` (feature 33)
+
+### Changes made
+
+- **PostgreSQL runtime (D-24)** — `settings.py` now uses `django.db.backends.postgresql` (default `DB_PORT=5432`); driver swapped `mysqlclient` → `psycopg[binary]` (psycopg v3 — Django 4.2+ imports `psycopg` natively and `psycopg-binary` ships Python 3.14 wheels, unlike `psycopg2-binary`); Dockerfile builds against `libpq-dev`; compose `db` service is `postgres:16` (`POSTGRES_DB/USER/PASSWORD`, port `5432:5432`, `pg_isready` healthcheck, `postgres_data` volume). `.env`/`.env.example` carry placeholder values (`localhost:5432`, `elderco`, `crmuser`) — replace with the real endpoint.
+- **Local `.env` loading** — added `python-dotenv` + `load_dotenv(BASE_DIR / '.env')` at the top of `settings.py`; Django does not read `.env` itself, so local `runserver` now picks up `DB_*` (docker-compose/deploy still inject env directly).
+- **SQLite unchanged for tests** — `USE_SQLITE=1`, `dcrm/settings_test.py`, and `conftest.py` untouched; pytest continues on in-memory SQLite.
+
+### Verification
+
+- `python -m pytest` — ✅ passes (2026-08-13).
+- `python manage.py migrate` + `runserver` vs Postgres — ✅ passes (2026-08-13, user-verified on Windows/Python 3.14).
+- `docker-compose up --build` — ✅ boots db + web + frontend (2026-08-13, user-verified).
+
+
 ## Phase 5 — Polish, deploy, deprecate (2026-08-13)
 
 **Status:** COMPLETED · **Gate:** `python -m pytest` green; `npm run build` + `npm run lint` pass; `docker-compose up --build` boots db + web + frontend

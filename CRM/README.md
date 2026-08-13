@@ -30,7 +30,7 @@ A customer relationship management application structured as a monorepo: a Djang
 - **Next.js frontend** — App Router + TypeScript app built on GitHub Primer, with login, register, dashboard, and records routes.
 - **BFF proxy auth** — Browser JS never touches the token: the Next.js proxy stores it in an httpOnly cookie and injects `Authorization: Token <key>` on proxied API calls.
 - **Legacy UI (deprecated)** — The original server-rendered Bootstrap/Django-template pages still work but are slated for removal (see [DECISIONS.md](Django-CRM/mdfiles/DECISIONS.md) D-03).
-- **Test suite** — pytest + pytest-django on in-memory SQLite (no local MySQL needed).
+- **Test suite** — pytest + pytest-django on in-memory SQLite (no local database needed).
 - **CI** — monorepo workflow at [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the backend suite (`python -m pytest`) on every push/PR to `main` affecting `CRM/Django-CRM/**`.
 
 ## Tech Stack
@@ -39,7 +39,7 @@ A customer relationship management application structured as a monorepo: a Djang
 |---|---|
 | Backend | Django 4.1 (Python) |
 | API | Django REST Framework + Token Auth |
-| Database | MySQL 8.0 (tests use in-memory SQLite) |
+| Database | PostgreSQL 16 (tests use in-memory SQLite) |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Frontend UI | GitHub Primer (`@primer/react`) + `styled-components` |
 | Web Server | Gunicorn (backend), Next.js (frontend) |
@@ -54,9 +54,9 @@ CRM/
 ├── README.md                   # This file
 ├── Django-CRM/                 # Django backend
 │   ├── Dockerfile              # Python 3.12 image + gunicorn
-│   ├── docker-compose.yml      # MySQL 8.0 + web service with auto-migrate
+│   ├── docker-compose.yml      # PostgreSQL 16 + web + frontend services
 │   ├── manage.py               # Django management CLI
-│   ├── mydb.py                 # Standalone script to create the MySQL database
+│   ├── mydb.py                 # Orphaned MySQL helper script (unused after D-24)
 │   ├── requirements.txt        # Python dependencies
 │   ├── .env.example            # Environment template
 │   ├── pytest.ini              # pytest config (dcrm.settings_test)
@@ -79,7 +79,7 @@ CRM/
 │   │   ├── views.py            # API views (records, stats, auth)
 │   │   ├── serializers.py      # RecordSerializer, UserSerializer, ...
 │   │   └── urls.py             # /api/ routes
-│   ├── tests/                  # pytest suite (SQLite, no MySQL needed)
+│   ├── tests/                  # pytest suite (in-memory SQLite)
 │   │   ├── conftest.py         # Shared fixtures (test_user, auth_client)
 │   │   ├── test_auth.py        # register / token / me
 │   │   ├── test_records.py     # CRUD + search / state / ordering / pagination
@@ -164,7 +164,7 @@ The frontend is available at <http://localhost:3000>. The backend must be runnin
 
 ## Docker Deployment
 
-A `docker-compose.yml` in `Django-CRM/` runs MySQL, the Django web service, and the Next.js frontend together:
+A `docker-compose.yml` in `Django-CRM/` runs PostgreSQL, the Django web service, and the Next.js frontend together:
 
 ```bash
 cd Django-CRM
@@ -173,7 +173,7 @@ docker-compose up --build
 
 This starts:
 
-- **db** — MySQL 8.0 with a healthcheck and a persistent `mysql_data` volume.
+- **db** — PostgreSQL 16 with a healthcheck and a persistent `postgres_data` volume.
 - **web** — builds the Django app, runs migrations automatically, and serves it via Gunicorn on port 8000.
 - **frontend** — builds the Next.js standalone image and serves it on port 3000; it reaches the API at `http://web:8000`.
 
@@ -236,11 +236,11 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 |---|---|---|
 | `SECRET_KEY` | Django secret key | Required for production |
 | `DEBUG` | Debug mode toggle | `True` (env-driven; see note below) |
-| `DB_NAME` | MySQL database name | — |
-| `DB_USER` | MySQL username | — |
-| `DB_PASSWORD` | MySQL password | — |
-| `DB_HOST` | MySQL host | — |
-| `DB_PORT` | MySQL port | `3306` |
+| `DB_NAME` | PostgreSQL database name | — |
+| `DB_USER` | PostgreSQL username | — |
+| `DB_PASSWORD` | PostgreSQL password | — |
+| `DB_HOST` | PostgreSQL host | — |
+| `DB_PORT` | PostgreSQL port | `5432` |
 | `ALLOWED_HOSTS` | Allowed hostnames | Railway + localhost |
 
 > **Note:** `DEBUG` is env-driven via the `DEBUG` variable (`True` by default in dev); see `Django-CRM/.env.example` for the template. Set it to `False` before production deployment.
@@ -257,7 +257,7 @@ Read at runtime by the BFF proxy (D-22); defaults to `http://localhost:8000` and
 
 ### Backend
 
-Tests live in `Django-CRM/tests/` and run with pytest against in-memory SQLite (no local MySQL required):
+Tests live in `Django-CRM/tests/` and run with pytest against in-memory SQLite (no local database required):
 
 ```bash
 cd Django-CRM

@@ -1,6 +1,6 @@
 # Django CRM — DRF JSON API
 
-Django 4.1 CRM backed by MySQL, with an additive Django REST Framework JSON API secured by DRF **Token Authentication**. The existing HTML `website` app is untouched; the API lives in the separate `api` app under `/api/`.
+Django 4.1 CRM backed by PostgreSQL (D-24), with an additive Django REST Framework JSON API secured by DRF **Token Authentication**. The existing HTML `website` app is untouched; the API lives in the separate `api` app under `/api/`.
 
 Docs: [FEATURES.md](FEATURES.md) (features implemented) · [PLAN.md](PLAN.md) (current working plan)
 
@@ -24,7 +24,7 @@ Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are pub
 ## Quick start
 
 ```bash
-python -m pytest          # run test suite (in-memory SQLite, never touches MySQL)
+python -m pytest          # run test suite (in-memory SQLite, never touches the runtime DB)
 python manage.py runserver
 ```
 
@@ -32,4 +32,4 @@ Visit the browsable API root at `http://localhost:8000/api/`.
 
 ## Testing
 
-pytest + pytest-django; root `tests/` package. The test suite switches the DB to in-memory SQLite automatically, so no local MySQL is needed to run tests.
+pytest + pytest-django; root `tests/` package. The test suite switches the DB to in-memory SQLite automatically, so no local database is needed to run tests.

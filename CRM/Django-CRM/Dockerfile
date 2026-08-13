@@ -3,9 +3,9 @@ FROM python:3.12-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for mysqlclient
+# Install system dependencies for psycopg2
 RUN apt-get update && apt-get install -y \
-    default-libmysqlclient-dev \
+    libpq-dev \
     build-essential \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*

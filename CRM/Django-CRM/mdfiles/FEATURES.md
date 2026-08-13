@@ -44,6 +44,8 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 30 | DEBUG env toggle | `dcrm/settings.py` | ✅ | 5 | 2026-08-13 | `os.environ.get('DEBUG', 'True')`; `.env.example` template |
 | 31 | CI frontend job | `.github/workflows/ci.yml` | ✅ | 5 | 2026-08-13 | `npm ci` + `npm run lint` + `npm run build`; `CRM/frontend/**` paths |
 | 32 | Legacy UI deprecated | `website/templates/base.html` | ✅ | 5 | 2026-08-13 | Deprecation banner comment (D-03) |
+| 33 | PostgreSQL runtime DB | `dcrm/settings.py`, compose `postgres:16` | ✅ | — | 2026-08-13 | D-24; `psycopg2-binary`; SQLite stays for tests only |
+| 34 | DB schema healthcheck | `python manage.py healthcheck` + `website/checks.py` + compose gate | ✅ | — | 2026-08-13 | D-25; detect-and-fail; Warning-level system check; skipped on SQLite |
 
 ## Implemented features (detailed)
 
@@ -51,6 +53,8 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 
 - **Test scaffold** — pytest + pytest-django configured in `pytest.ini` (`DJANGO_SETTINGS_MODULE=dcrm.settings`); tests run on in-memory SQLite via root `conftest.py` (`USE_SQLITE=1`), never MySQL. Shared fixtures (`test_user`, `auth_client`) in `tests/conftest.py`. CI runs `python -m pytest` on every push and PR to `main` (`.github/workflows/ci.yml`).
 - **DRF bootstrap** — `djangorestframework` added; `rest_framework`, `rest_framework.authtoken`, `api` registered in `INSTALLED_APPS`; global `REST_FRAMEWORK` defaults: `TokenAuthentication` + `IsAuthenticatedOrReadOnly`. API mounted at `/api/`.
+- **PostgreSQL runtime DB (D-24)** — `dcrm/settings.py` uses `django.db.backends.postgresql` (env-driven `DB_NAME`/`DB_USER`/`DB_PASSWORD`/`DB_HOST`, `DB_PORT` default `5432`); driver `psycopg2-binary`; compose `db` service is `postgres:16` with `POSTGRES_DB/USER/PASSWORD`, port `5432`, `pg_isready` healthcheck, and `postgres_data` volume; Dockerfile builds against `libpq-dev`. SQLite remains the in-memory pytest DB only (`USE_SQLITE=1`).
+- **DB schema healthcheck (D-25)** — `python manage.py healthcheck` verifies the DB on startup: connectivity, all migrations applied (`MigrationExecutor` plan), and every model table present (`connection.introspection.table_names()` vs each `_meta.db_table`, deduped). Exits `0`/`1`. `website/checks.py` also registers an untagged system check (Warning level so a fresh DB can still run `migrate`), surfaced by `runserver`/`manage.py check` and skipped under `USE_SQLITE=1`; on Django 6.1 it's imported via `website/apps.py` `ready()` (app `checks.py` no longer auto-loads) and untagged because `runserver` skips `Tags.database` checks. Compose `web` runs `migrate && healthcheck && gunicorn`, exposes a `healthcheck` probe, and `frontend` only starts after `web` is healthy.
 
 ### Auth API
 
