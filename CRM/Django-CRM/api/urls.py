@@ -6,6 +6,7 @@ from .views import (
     ListCreateRecordAPIView,
     MeAPIView,
     RegisterAPIView,
+    ReportAPIView,
     RetrieveUpdateDestroyRecordAPIView,
     StatsAPIView,
 )
@@ -16,6 +17,7 @@ urlpatterns = [
     path('records/', ListCreateRecordAPIView.as_view()),
     path('records/<int:pk>/', RetrieveUpdateDestroyRecordAPIView.as_view()),
     path('stats/', StatsAPIView.as_view()),
+    path('reports/', ReportAPIView.as_view()),
     path('auth/register/', RegisterAPIView.as_view()),
     path('auth/me/', MeAPIView.as_view()),
     path('auth/token/', obtain_auth_token),

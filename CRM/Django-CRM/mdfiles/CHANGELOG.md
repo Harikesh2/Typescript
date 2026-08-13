@@ -96,3 +96,30 @@
 ### Verification
 
 - `npm run build` — pending (user runs manually); login/register/logout flow pending e2e test.
+
+## Reporting — API + page (2026-08-13)
+
+**Status:** IN PROGRESS · **Gate:** `python -m pytest` green; `npm run build` + `npm run lint` pass
+
+### Files touched
+
+- `Django-CRM/api/views.py` (added `ReportAPIView`; `TruncMonth` import)
+- `Django-CRM/api/urls.py` (`/api/reports/`)
+- `Django-CRM/tests/test_reports.py` (new)
+- `frontend/src/app/reports/page.tsx` (new)
+- `frontend/src/components/crm/reports.tsx` (new)
+- `frontend/src/components/crm/app-sidebar.tsx` (Reports nav item)
+- `frontend/src/proxy.ts` (`/reports` protected)
+- `mdfiles/PLAN.md`
+- `mdfiles/FEATURES.md`
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **`GET /api/reports/`** — new token-gated `ReportAPIView` (modeled on `StatsAPIView`): `total_records`, `records_per_month` (`TruncMonth` on `created_at`, ascending), `by_state` (count desc). Optional `?from=`/`?to=` ISO datetime range filters (`400` on invalid values).
+- **`/reports` page** — new client page in the shell: summary stat cards + two Primer `DataTable` views (records per month, records by state); data fetched via BFF proxy from `/api/reports/`.
+- **Nav + protection** — Reports added to the sidebar; `/reports` added to `protectedPaths`/matcher in `proxy.ts`.
+
+### Verification
+
+- Pending — user runs `python -m pytest`, `npm run build`, `npm run lint` manually.

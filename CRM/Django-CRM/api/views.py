@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.db.models import Count
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from rest_framework import exceptions, filters, generics
@@ -97,6 +98,45 @@ class StatsAPIView(APIView):
                 Record.objects.values('state').annotate(count=Count('id')).order_by('-count')
             ),
             'newest_record': RecordSerializer(newest_record).data if newest_record else None,
+        }
+        return Response(data)
+
+
+class ReportAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def permission_denied(self, request, message=None, code=None):
+        raise exceptions.PermissionDenied(detail=message, code=code)
+
+    def get(self, request):
+        queryset = Record.objects.all()
+
+        date_from = request.query_params.get('from')
+        date_to = request.query_params.get('to')
+        if date_from:
+            try:
+                parsed_from = timezone.datetime.fromisoformat(date_from)
+            except ValueError:
+                raise exceptions.ValidationError({'from': 'Invalid date format.'})
+            queryset = queryset.filter(created_at__gte=parsed_from)
+        if date_to:
+            try:
+                parsed_to = timezone.datetime.fromisoformat(date_to)
+            except ValueError:
+                raise exceptions.ValidationError({'to': 'Invalid date format.'})
+            queryset = queryset.filter(created_at__lte=parsed_to)
+
+        data = {
+            'total_records': queryset.count(),
+            'records_per_month': list(
+                queryset.annotate(month=TruncMonth('created_at'))
+                .values('month')
+                .annotate(count=Count('id'))
+                .order_by('month')
+            ),
+            'by_state': list(
+                queryset.values('state').annotate(count=Count('id')).order_by('-count')
+            ),
         }
         return Response(data)
 

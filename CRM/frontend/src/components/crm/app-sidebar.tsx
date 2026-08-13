@@ -7,6 +7,7 @@ import {
   PeopleIcon,
   PlusIcon,
   SignOutIcon,
+  GraphIcon,
 } from '@primer/octicons-react';
 
 export function AppSidebar() {
@@ -37,6 +38,12 @@ export function AppSidebar() {
           <PlusIcon />
         </NavList.LeadingVisual>
         Add Record
+      </NavList.Item>
+      <NavList.Item href="/reports">
+        <NavList.LeadingVisual>
+          <GraphIcon />
+        </NavList.LeadingVisual>
+        Reports
       </NavList.Item>
       <NavList.Divider />
       <NavList.Item onSelect={handleLogout}>

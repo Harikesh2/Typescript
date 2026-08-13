@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextFetchEvent, NextRequest } from 'next/server';
 import { COOKIE_NAME } from '@/lib/auth';
 
-const protectedPaths = ['/dashboard', '/records'];
+const protectedPaths = ['/dashboard', '/records', '/reports'];
 const authPaths = ['/login', '/register'];
 
 function isProtected(path: string) {
@@ -35,6 +35,7 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/records/:path*',
+    '/reports/:path*',
     '/login',
     '/register',
   ],

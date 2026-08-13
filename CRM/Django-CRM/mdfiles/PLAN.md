@@ -74,6 +74,12 @@ See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D
 - Mark `website/templates` deprecated (D-03); update PLAN.md/FEATURES.md/README.md.
 - **Gate:** all checks pass; run instructions documented.
 
+### Reporting — API + page — **IN PROGRESS** (additional feature)
+
+- New `GET /api/reports/` (token-gated): `records_per_month` (created_at grouped by month), `by_state` (counts), `total_records`, optional `?from=`/`?to=` date-range filter.
+- Frontend `/reports` route: stat cards + `DataTable` views (monthly counts, state breakdown); sidebar link.
+- **Gate:** `python -m pytest` green; `npm run build` + `npm run lint` pass.
+
 ## Out of scope / handled elsewhere
 
 - Charts/recharts (D-05, deferred to v2), full server-pagination rollout, dark mode, RBAC, leads/deals.

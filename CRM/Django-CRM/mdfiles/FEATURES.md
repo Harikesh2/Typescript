@@ -28,6 +28,8 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 14 | Current user | `GET /api/auth/me/` | ✅ | 0 | 2026-08-11 | `{id, username, email}` for navbar chip |
 | 15 | Frontend scaffold | Primer shell: sidebar + topbar, `/login`, `/dashboard` | ✅ | 1 | 2026-08-11 | Primer design (D-10); mock data; UI-only login |
 | 16 | Records stub routes | `/records`, `/records/new` | ✅ | 1 | 2026-08-11 | Placeholders; CRUD UI in Phase 4 |
+| 17 | Reports API | `GET /api/reports/` | 🚧 | — | 2026-08-13 | Token-gated aggregates; monthly + state breakdown |
+| 18 | Reports page | `/reports` | 🚧 | — | 2026-08-13 | Stat cards + DataTable views; sidebar link |
 
 ## Implemented features (detailed)
 
@@ -69,6 +71,11 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 - **Shell** — sidebar (Dashboard `/dashboard`, Records `/records`, Add Record `/records/new`, Logout placeholder → `/login`) + topbar with user chip; shared `TopBar`/`AppSidebar` components.
 - **Routes** — `/` redirects to `/login` (UI-only placeholder, real auth is Phase 2); `/dashboard` renders mock `StatCards` + `ContactsTable` (data from `lib/contacts.ts`, real API in Phase 3); `/records` + `/records/new` are stubs via `components/crm/stub-page.tsx` (CRUD UI in Phase 4).
 - **Config** — `next.config.ts` sets `env.DJANGO_API_URL` (default `http://localhost:8000`, consumed from Phase 2).
+
+### Reports (additional feature)
+
+- **`GET /api/reports/`** — `ReportAPIView`, token required. Returns `total_records`, `records_per_month` (`[{month, count}]` — `created_at` grouped by month, ascending, `month` may be `null`), `by_state` (`[{state, count}]` desc). Optional `?from=`/`?to=` ISO datetime range filters; invalid values → 400.
+- **`/reports` page** — client page in the app shell: summary stat cards (total records, months with records, distinct states) + two `DataTable` views (records per month, records by state), driven by the BFF proxy fetch to `/api/reports/`.
 
 ## Planned / next features
 
