@@ -19,10 +19,7 @@ services:
 
   web:
     build: .
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py healthcheck &&
-             gunicorn dcrm.wsgi:application --bind 0.0.0.0:8000"
+    command: gunicorn dcrm.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
@@ -34,10 +31,9 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "manage.py", "healthcheck"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      retries: 6
 
   frontend:
     build:

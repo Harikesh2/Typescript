@@ -154,7 +154,7 @@ cd frontend
 npm install
 
 # 2. (Optional) Point the proxy at your backend if not on the default
-#    DJANGO_API_URL=http://localhost:8000 (runtime env, default)
+#    DJANGO_API_URL=http://localhost:8000 (runtime env, dev default; required in production, see D-26)
 
 # 3. Run the development server
 npm run dev
@@ -174,7 +174,7 @@ docker-compose up --build
 This starts:
 
 - **db** — PostgreSQL 16 with a healthcheck and a persistent `postgres_data` volume.
-- **web** — builds the Django app, runs migrations automatically, and serves it via Gunicorn on port 8000.
+- **web** — builds the Django app; its entrypoint runs migrations + the schema healthcheck, then serves the API via Gunicorn on port 8000.
 - **frontend** — builds the Next.js standalone image and serves it on port 3000; it reaches the API at `http://web:8000`.
 
 `DJANGO_API_URL` is read at runtime (D-22), so the backend URL can be overridden without a rebuild, e.g. `docker-compose up -e DJANGO_API_URL=https://api.example.com`.
@@ -249,9 +249,9 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 
 | Variable | Description | Default |
 |---|---|---|
-| `DJANGO_API_URL` | Backend base URL used by the BFF proxy | `http://localhost:8000` |
+| `DJANGO_API_URL` | Backend base URL used by the BFF proxy | `http://localhost:8000` (dev only) |
 
-Read at runtime by the BFF proxy (D-22); defaults to `http://localhost:8000` and can be overridden via an environment variable (e.g. compose `DJANGO_API_URL=http://web:8000`).
+Read at runtime by the BFF proxy (D-22). **Required in production**: if unset with `NODE_ENV=production`, the app fails fast with `DJANGO_API_URL is required in production` rather than silently falling back to localhost (D-26). Dev default `http://localhost:8000`; override via an environment variable (e.g. compose `DJANGO_API_URL=http://web:8000`).
 
 ## Testing
 

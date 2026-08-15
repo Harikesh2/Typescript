@@ -12,5 +12,12 @@ export function getCookieOptions() {
 }
 
 export function getDjangoApiUrl(): string {
-  return process.env.DJANGO_API_URL ?? 'http://localhost:8000';
+  const url = process.env.DJANGO_API_URL;
+  if (!url) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('DJANGO_API_URL is required in production');
+    }
+    return 'http://localhost:8000';
+  }
+  return url;
 }

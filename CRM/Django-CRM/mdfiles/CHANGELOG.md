@@ -2,6 +2,101 @@
 
 > Single changelog for all phase changes. Created once; append per phase. Follows `PLAN.md` (one phase at a time).
 
+## PR review `new_ui` — closed out (2026-08-15)
+
+**Status:** COMPLETE
+
+- All 20 review items resolved (18 fixed, 2 skipped by decision: M3 → D-33 opt-in pagination, L3 → cookie already hardened).
+- Backend gate `python -m pytest` → **52 passed** (M1/M2/M4/M5/M6 + M4 `.distinct()` revert).
+- Frontend `npm run build` + `npm run lint` (M7/M8) — pending user.
+- `mdfiles/PR_REVIEW.md` removed — decisions already preserved in `DECISIONS.md` (D-25→D-33) and this changelog.
+
+## PR_REVIEW fixes — M-batch + H2 verify (2026-08-15)
+
+**Status:** IN PROGRESS · **Gate:** `python -m pytest` green (M1/M2/M4/M5/M6); `npm run build` + `npm run lint` pass (M7/M8)
+
+### Files touched
+
+- `Django-CRM/api/views.py` (M1 — 5 overrides removed; M4 — `.distinct()`; M5 — tie-break; M6 — `by_state()` helper)
+- `Django-CRM/api/serializers.py` (M2 — dict return + read-only `id`/`token`)
+- `Django-CRM/tests/test_records.py` (M1 — 403 → 401 ×2)
+- `Django-CRM/tests/test_stats.py` (M1 — 403 → 401)
+- `Django-CRM/tests/test_auth.py` (M1 — 403 → 401)
+- `Django-CRM/tests/test_reports.py` (M1 — 403 → 401)
+- `frontend/src/app/globals.css` (M7 — `.crm-card`)
+- `frontend/src/components/crm/record-detail.tsx` (M7)
+- `frontend/src/components/crm/recent-records.tsx` (M7)
+- `frontend/src/components/crm/edit-record.tsx` (M7)
+- `frontend/src/components/crm/reports.tsx` (M7)
+- `frontend/src/components/crm/contacts-table.tsx` (M8 — deleted)
+- `frontend/src/components/crm/stub-page.tsx` (M8 — deleted)
+- `frontend/src/lib/contacts.ts` (M8 — deleted)
+- `frontend/public/placeholder.svg` (M8 — deleted, orphaned)
+- `mdfiles/DECISIONS.md` (D-31, D-32, D-33)
+- `mdfiles/CHANGELOG.md`
+- `mdfiles/PR_REVIEW.md` (status updates)
+- `mdfiles/FEATURES.md` (403 → 401 rows)
+- `mdfiles/PLAN.md` (Phase 6)
+
+### Changes made
+
+- **M1 — five copy-pasted `permission_denied` overrides deleted** — `ListCreateRecordAPIView`, `RetrieveUpdateDestroyRecordAPIView`, `StatsAPIView`, `ReportAPIView`, `MeAPIView` no longer override `permission_denied`. DRF now returns **401 NotAuthenticated** for anonymous requests and 403 for authenticated-but-forbidden (correct semantics). Tests updated `403 → 401` in `test_records.py:107,254`, `test_stats.py:15`, `test_auth.py:88`, `test_reports.py:15` (D-31).
+- **M2 — register serializer returns a dict** — `RegisterSerializer.create()` now returns `{id, username, email, token}` instead of the `(user, token)` tuple; `to_representation` deleted. `id`/`token` are declared read-only serializer fields so DRF's default `to_representation` keeps them in the response (the BFF register route reads `data.token`). Response shape unchanged (D-32).
+- **M4 — `.distinct()` retained** — the review claimed it was a no-op on `values()`, but `values('state').count()` actually counts all record rows (one per record), not distinct states. `.distinct()` is needed to count truly distinct states. Earlier notes in this changelog and PR_REVIEW.md incorrectly said it was deleted/no-op; the code retains `.distinct()` on the `distinct_states` line.
+- **M5 — `by_state` tie-break** — both aggregate blocks now `order_by('-count', 'state')` so equal-count states sort deterministically.
+- **M6 — shared `by_state()` helper** — extracted `by_state(queryset)` in `api/views.py` (values + `Count('id')` + `-count, state`); `StatsAPIView` passes `Record.objects.all()`, `ReportAPIView` its range-filtered queryset.
+- **M7 — `.crm-card` class** — added `padding: var(--base-size-24)` + border + radius + bg to `globals.css`; replaced matching inline card styles in `edit-record.tsx` (×3), `record-detail.tsx` (×2), `recent-records.tsx` (×1), `reports.tsx` loading card (×1). Stat cards (`stat-cards.tsx`, `reports.tsx` ×3) left inline — they differ (boxShadow + Stack padding); `auth-shell.tsx`/`record-form.tsx` have no card border.
+- **M8 — dead code removed** — `contacts-table.tsx`, `stub-page.tsx`, `lib/contacts.ts` deleted (nothing imported them; grep-verified). `public/placeholder.svg`, only referenced by the deleted `contacts-table`, also removed.
+- **H2 — confirmed already resolved** — `.github/workflows/ci.yml` exists at the git root and is committed in `new_ui` (backend pytest on SQLite via `conftest.py`; frontend lint + build on `CRM/frontend/**`). No code change; only the PR_REVIEW.md status updated.
+
+### Verification
+
+- `python -m pytest` (M1/M2/M4/M5/M6) — ⏳ pending (user runs gate).
+- `npm run build` (M7/M8) — ⏳ pending (user runs gate).
+- `npm run lint` (M7/M8) — ⏳ pending (user runs gate).
+- visual regression: `/records`, `/records/[id]`, `/records/[id]/edit`, `/dashboard`, `/reports` still render identical cards — ⏳ pending (user).
+
+## PR_REVIEW fixes — HIGH (H1, H4, H5, H6) (2026-08-14)
+
+**Status:** IN PROGRESS · **Gate:** `npm run build` + `npm run lint` pass; create/update/delete records through the new-record/edit forms against a running Django API; prod container without `DJANGO_API_URL` fails fast; `DROP TABLE website_record` → `manage.py check` exits non-zero; fresh-DB `migrate` still works; `docker compose up -d --build` → `web` healthy with migrate → healthcheck → gunicorn in order
+
+### Files touched
+
+- `frontend/src/app/api/[...path]/route.ts` (H1)
+- `frontend/src/components/crm/records-list.tsx` (records pagination shape)
+- `frontend/src/lib/auth.ts` (H4)
+- `README.md` (Configuration Reference + Getting Started — `DJANGO_API_URL` now required in prod; Docker Deployment — entrypoint preflight)
+- `Django-CRM/website/checks.py` (H5 — selective severity)
+- `Django-CRM/website/management/commands/healthcheck.py` (H5 — unpack severity)
+- `Django-CRM/Dockerfile` (H6 — ENTRYPOINT + plain gunicorn CMD)
+- `Django-CRM/entrypoint.sh` (H6 — new)
+- `Django-CRM/docker-compose.yml` (H6 — `web` command simplified, healthcheck slimmed)
+- `mdfiles/DECISIONS.md` (D-26, D-27, D-28, D-29, D-30, D-25 update; D-17 superseded)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **H1 — BFF proxy drops request body on POST/PUT/PATCH/DELETE** — `request.body` is a `ReadableStream`; passing it straight into `fetch` after the request was inspected silently dropped it for non-GET/HEAD. The catch-all proxy now buffers the body once (`await request.arrayBuffer()`) for non-GET/HEAD, forwards it as `body`, and sets `redirect: 'manual'` so Next never swallows upstream 3xx. No `duplex` needed (ArrayBuffer is a valid `BodyInit`; D-17 superseded by D-27). Writes from `/records/new`, `/records/[id]/edit`, login, and register now reach Django with their payloads.
+- **H1-followup — infinite 301 redirect loop on every `/api/*` call** — surfaced once `redirect: 'manual'` exposed what the old follow-redirect behavior masked. Next's default `trailingSlash` handling 308s `/api/records/` → `/api/records` before the handler runs, so the proxy forwarded a no-slash path to Django, whose `APPEND_SLASH` 301'd back to `/api/records/`; the browser followed → 308 → 301 → loop, UI empty. The proxy now appends a trailing slash to the forwarded path when missing (`route.ts`), so Django never 301s (D-29); this also restores write correctness that D-21 aimed for but couldn't reach because `nextUrl.pathname` never received the slash. The running build predated this fix, so the loop persisted until the dev server was restarted / rebuilt.
+- **H1-followup — `/records` blank page from pagination shape mismatch** — backend pagination is opt-in (D-07); `buildUrl` only added `?page=` when `page > 1`, so page 1 returned a plain array and `data?.results.map(...)` threw a TypeError on the undefined `results`, blanking the page. The records list now always sends `?page=` (including `page=1`) so the response is always `{count, next, previous, results}`, and the render guards with `data?.results?.map(...) ?? []` so the loading/null state can't crash. Backend behavior unchanged, so D-07's plain-array tests stay green (D-30).
+- **H1-followup — `Expected either an `id` or `field` to be defined for a Column`** — surfaced once data rendered after the shape fix. Primer's `useTable` throws for any column lacking both `id` and `field`; the records list Actions column had only `header` + `renderCell`. Added `id: 'actions'` (matching `contacts-table.tsx`), clearing the DataTable render crash.
+- **H4 — `DJANGO_API_URL` silent localhost fallback in prod** — `getDjangoApiUrl()` now throws `DJANGO_API_URL is required in production` when the variable is unset and `NODE_ENV=production`; dev keeps the `http://localhost:8000` fallback. Only server-side modules import `auth.ts` (route handlers, `proxy.ts`), so `next build` is unaffected. README's Configuration Reference documents the prod requirement (D-26).
+- **H5 — healthcheck severity raised selectively** — `verify_schema()` now returns `(severity, message)` tuples. `db_schema_check` maps them: **unapplied migrations → Warning** (transient first-run state; Error would deadlock fresh-DB `migrate` since Django runs system checks before applying migrations), **missing tables with no unapplied migrations → Error** (true corruption), **could not verify schema → Error**. `manage.py healthcheck` unchanged in behavior (still exits 1 on any problem), now unpacking the severity. D-25 updated to note the level change.
+- **H6 — compose command/healthcheck race** — the `web` preflight moved out of the compose `command` chain (`sh -c "migrate && healthcheck && gunicorn"`) into a dedicated `Dockerfile` `ENTRYPOINT` (`/entrypoint.sh`: `migrate --noinput` → `healthcheck` → `exec "$@"`); compose `command` is now plain gunicorn and the `web` healthcheck is slimmed (`interval 10s`, `retries 6`, no `start_period`). The old chain raced the container healthcheck (which ran `manage.py healthcheck` in parallel and could pass before gunicorn bound); the entrypoint decouples the one-time preflight from the long-running server (D-28). README's Docker section updated.
+
+### Verification
+
+- `npm run build` — ⏳ pending (user runs gate).
+- `npm run lint` — ⏳ pending (user runs gate).
+- e2e: `POST /api/records/` from the new-record form → Django receives the JSON body — ⏳ pending (user).
+- 301-loop: `/records` list populates and create/edit/delete work with no 301s in the Next dev log — ⏳ pending (user).
+- prod runtime without `DJANGO_API_URL` → proxied request fails with the clear error in logs — ⏳ pending (user).
+- `next build` in CI (no `DJANGO_API_URL` set) still passes — ⏳ pending (user).
+- H5: `DROP TABLE website_record;` → `python manage.py check` exits non-zero, `python manage.py healthcheck` exits 1 — ⏳ pending (user).
+- H5: fresh-DB `python manage.py migrate` still succeeds (unapplied migrations stay Warning) — ⏳ pending (user).
+- H5: `python -m pytest` (USE_SQLITE=1 skips the check) — ⏳ pending (user).
+- H6: `docker compose up -d --build` → `web` healthy; logs show migrate → healthcheck → gunicorn in order — ⏳ pending (user).
+
 ## DB schema healthcheck (D-25) (2026-08-13)
 
 **Status:** IN PROGRESS · **Gate:** `python manage.py healthcheck` exit 0 on healthy Postgres / exit 1 with a dropped table; `python -m pytest` green; `docker-compose up --build` boots with `web` healthy before `frontend`

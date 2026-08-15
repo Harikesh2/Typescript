@@ -12,7 +12,7 @@ def test_stats_url_resolves():
 
 def test_stats_anonymous_forbidden(api_client):
     response = api_client.get('/api/stats/')
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_stats_empty_returns_shape(auth_client, db):

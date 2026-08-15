@@ -37,14 +37,7 @@ export function ReportsView() {
 
   if (!data) {
     return (
-      <div
-        style={{
-          padding: 'var(--base-size-24)',
-          border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-          borderRadius: 'var(--borderRadius-large)',
-          backgroundColor: 'var(--bgColor-default)',
-        }}
-      >
+      <div className="crm-card">
         <Text style={{ color: 'var(--fgColor-muted)' }}>
           Loading reports…
         </Text>

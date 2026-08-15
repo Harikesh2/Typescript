@@ -17,5 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Run with gunicorn
+# Entrypoint runs the one-time preflight (migrate + schema healthcheck) before the server
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "dcrm.wsgi:application", "--bind", "0.0.0.0:8000"]

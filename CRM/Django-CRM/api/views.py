@@ -15,6 +15,12 @@ from website.models import Record
 from .serializers import RecordSerializer, RegisterSerializer, UserSerializer
 
 
+def by_state(queryset):
+    return list(
+        queryset.values('state').annotate(count=Count('id')).order_by('-count', 'state')
+    )
+
+
 class RecordPageNumberPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = 'page_size'
@@ -57,17 +63,11 @@ class ListCreateRecordAPIView(generics.ListCreateAPIView):
                 return self.get_paginated_response(serializer.data)
         return super().list(request, *args, **kwargs)
 
-    def permission_denied(self, request, message=None, code=None):
-        raise exceptions.PermissionDenied(detail=message, code=code)
-
 
 class RetrieveUpdateDestroyRecordAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Record.objects.all()
     serializer_class = RecordSerializer
     http_method_names = ['get', 'put', 'patch', 'delete', 'head', 'options']
-
-    def permission_denied(self, request, message=None, code=None):
-        raise exceptions.PermissionDenied(detail=message, code=code)
 
 
 class RegisterAPIView(generics.CreateAPIView):
@@ -77,9 +77,6 @@ class RegisterAPIView(generics.CreateAPIView):
 
 class StatsAPIView(APIView):
     permission_classes = [IsAuthenticated]
-
-    def permission_denied(self, request, message=None, code=None):
-        raise exceptions.PermissionDenied(detail=message, code=code)
 
     def get(self, request):
         now = timezone.now()
@@ -94,9 +91,7 @@ class StatsAPIView(APIView):
             'records_this_week': Record.objects.filter(created_at__gte=start_of_week).count(),
             'records_this_month': Record.objects.filter(created_at__gte=start_of_month).count(),
             'distinct_states': Record.objects.values('state').distinct().count(),
-            'by_state': list(
-                Record.objects.values('state').annotate(count=Count('id')).order_by('-count')
-            ),
+            'by_state': by_state(Record.objects.all()),
             'newest_record': RecordSerializer(newest_record).data if newest_record else None,
         }
         return Response(data)
@@ -104,9 +99,6 @@ class StatsAPIView(APIView):
 
 class ReportAPIView(APIView):
     permission_classes = [IsAuthenticated]
-
-    def permission_denied(self, request, message=None, code=None):
-        raise exceptions.PermissionDenied(detail=message, code=code)
 
     def get(self, request):
         queryset = Record.objects.all()
@@ -134,18 +126,13 @@ class ReportAPIView(APIView):
                 .annotate(count=Count('id'))
                 .order_by('month')
             ),
-            'by_state': list(
-                queryset.values('state').annotate(count=Count('id')).order_by('-count')
-            ),
+            'by_state': by_state(queryset),
         }
         return Response(data)
 
 
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]
-
-    def permission_denied(self, request, message=None, code=None):
-        raise exceptions.PermissionDenied(detail=message, code=code)
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)

@@ -90,14 +90,7 @@ export function RecordDetail({ id }: Props) {
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: 'var(--base-size-24)',
-          border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-          borderRadius: 'var(--borderRadius-large)',
-          backgroundColor: 'var(--bgColor-default)',
-        }}
-      >
+      <div className="crm-card">
         <Text style={{ color: 'var(--fgColor-muted)' }}>
           Loading record…
         </Text>
@@ -129,14 +122,7 @@ export function RecordDetail({ id }: Props) {
         </Flash>
       ) : null}
 
-      <div
-        style={{
-          padding: 'var(--base-size-24)',
-          border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-          borderRadius: 'var(--borderRadius-large)',
-          backgroundColor: 'var(--bgColor-default)',
-        }}
-      >
+      <div className="crm-card">
         <Stack direction="vertical" gap="normal">
           <Stack direction="horizontal" justify="space-between" align="center">
             <Stack direction="vertical" gap="condensed">

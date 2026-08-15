@@ -85,7 +85,7 @@ def test_me_url_resolves():
 
 def test_me_anonymous_forbidden(api_client):
     response = api_client.get('/api/auth/me/')
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_me_authenticated_returns_user(auth_client, test_user):

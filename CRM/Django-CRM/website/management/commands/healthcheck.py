@@ -14,6 +14,6 @@ class Command(BaseCommand):
         if not problems:
             self.stdout.write(self.style.SUCCESS("OK: migrations applied and all model tables exist."))
             return
-        for problem in problems:
+        for severity, problem in problems:
             self.stderr.write(self.style.ERROR(f"FAIL: {problem}"))
         sys.exit(1)

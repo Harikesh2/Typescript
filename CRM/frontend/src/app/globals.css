@@ -40,3 +40,10 @@ body {
 #__next {
   min-height: 100vh;
 }
+
+.crm-card {
+  padding: var(--base-size-24);
+  border: var(--borderWidth-thin) solid var(--borderColor-default);
+  border-radius: var(--borderRadius-large);
+  background-color: var(--bgColor-default);
+}

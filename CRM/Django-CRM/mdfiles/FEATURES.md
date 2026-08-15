@@ -18,10 +18,10 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 4 | Create record | `POST /api/records/` | ✅ | 3 | 2026-08-10 | 201 / 400; authenticated required |
 | 5 | Record detail | `GET /api/records/<pk>/` | ✅ | 4 | 2026-08-10 | 200 / 404 (missing + invalid pk) |
 | 6 | Update record | `PUT/PATCH /api/records/<pk>/` | ✅ | 5 | 2026-08-10 | Full replace / partial update |
-| 7 | Delete record | `DELETE /api/records/<pk>/` | ✅ | 6 | 2026-08-10 | 204; anonymous → 403 |
+| 7 | Delete record | `DELETE /api/records/<pk>/` | ✅ | 6 | 2026-08-10 | 204; anonymous → 401 |
 | 8 | Register | `POST /api/auth/register/` | ✅ | 7 | 2026-08-10 | Creates User + token; AllowAny |
 | 9 | Obtain token | `POST /api/auth/token/` | ✅ | 8 | 2026-08-10 | 200 + token / 400 bad creds |
-| 10 | Permission locking | All record writes + real-token header tests | ✅ | 9 | 2026-08-10 | Anonymous POST/DELETE → 403 |
+| 10 | Permission locking | All record writes + real-token header tests | ✅ | 9 | 2026-08-10 | Anonymous POST/DELETE → 401 |
 | 11 | Search & filters | `GET /api/records/?search=&ordering=&state=` | ✅ | 0 | 2026-08-11 | Search name/email; state exact (ci); sort |
 | 12 | Opt-in pagination | `GET /api/records/?page=` | ✅ | 0 | 2026-08-11 | `{count,next,previous,results}`; array without `?page=` |
 | 13 | Stats | `GET /api/stats/` | ✅ | 0 | 2026-08-11 | Token-gated aggregates for dashboard |
@@ -68,11 +68,11 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 | Method | Endpoint | Behavior | Errors |
 |--------|----------|----------|--------|
 | GET | `/api/records/` | `ListCreateRecordAPIView` → plain JSON array; filters `?search=`, `?state=`, `?ordering=` | `404` invalid `?page=` |
-| POST | `/api/records/` | `201` created record | `400` missing/invalid fields; `403` anonymous |
+| POST | `/api/records/` | `201` created record | `400` missing/invalid fields; `401` anonymous |
 | GET | `/api/records/<pk>/` | `RetrieveUpdateDestroyRecordAPIView` → `200` full object | `404` missing / invalid pk |
-| PUT | `/api/records/<pk>/` | `200` full replace (all fields required) | `400` missing required fields; `403` anonymous |
-| PATCH | `/api/records/<pk>/` | `200` partial update | `400` invalid; `403` anonymous |
-| DELETE | `/api/records/<pk>/` | `204` object removed | `404` missing pk; `403` anonymous |
+| PUT | `/api/records/<pk>/` | `200` full replace (all fields required) | `400` missing required fields; `401` anonymous |
+| PATCH | `/api/records/<pk>/` | `200` partial update | `400` invalid; `401` anonymous |
+| DELETE | `/api/records/<pk>/` | `204` object removed | `404` missing pk; `401` anonymous |
 
 `RecordSerializer` exposes all model fields with `created_at` read-only. Pseudo-requirement notes kept from the phase log: DRF's `ModelSerializer` ignores unknown keys rather than rejecting them; login/automated permissions verified over real `HTTP_AUTHORIZATION: Token <key>` headers in tests.
 

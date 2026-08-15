@@ -83,6 +83,19 @@ See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D
 - Frontend `/reports` route: stat cards + `DataTable` views (monthly counts, state breakdown); sidebar link.
 - **Gate:** `python -m pytest` green; `npm run build` + `npm run lint` pass.
 
+### Phase 6 — PR review M-batch cleanup — ✅ COMPLETED (2026-08-15)
+
+- M1: delete 5 `permission_denied` overrides; anonymous → 401 (tests + FEATURES updated; D-31).
+- M2: register serializer returns dict + read-only `id`/`token` (D-32).
+- M4: retain `.distinct()` on `distinct_states` — the review claimed it was a no-op on `values()`, but `values('state').count()` actually counts all record rows, not distinct states; `.distinct()` is needed to count distinct states. The earlier claim was incorrect.
+- M5: `by_state` tie-break `order_by('-count', 'state')`. M6: shared `by_state(queryset)` helper.
+- M7: `.crm-card` CSS class replaces repeated inline card styles.
+- M8: delete dead `contacts-table.tsx`, `stub-page.tsx`, `lib/contacts.ts` (+ orphaned `placeholder.svg`).
+- H2: verified already resolved — `.github/workflows/ci.yml` exists + committed.
+- M3 (declined, D-33) and L3 (declined) — kept opt-in pagination / current cookie.
+- `mdfiles/PR_REVIEW.md` removed on close-out; all decisions preserved in `DECISIONS.md` (D-25→D-33).
+- **Gate:** `python -m pytest` green (52 passed); `npm run build` + `npm run lint` — ⏳ pending (user).
+
 ## Out of scope / handled elsewhere
 
 - Charts/recharts (D-05, deferred to v2), full server-pagination rollout, dark mode, RBAC, leads/deals.

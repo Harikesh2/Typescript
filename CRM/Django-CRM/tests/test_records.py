@@ -104,7 +104,7 @@ def test_records_delete_anonymous_forbidden(api_client, db):
     )
 
     response = api_client.delete(f'/api/records/{record.pk}/')
-    assert response.status_code == 403
+    assert response.status_code == 401
     assert Record.objects.filter(pk=record.pk).exists()
 
 
@@ -251,7 +251,7 @@ def test_records_list_returns_seeded(api_client, db):
 
 def test_records_create_anonymous_forbidden(api_client, db):
     response = api_client.post('/api/records/', {'first_name': 'Bogus'})
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_records_create_returns_201(auth_client, db):

@@ -67,7 +67,7 @@ function buildUrl(
       sort.direction === 'DESC' ? `-${sort.field}` : sort.field,
     )
   }
-  if (page > 1) params.set('page', String(page))
+  params.set('page', String(page))
   const query = params.toString()
   return query ? `/api/records/?${query}` : '/api/records/'
 }
@@ -158,7 +158,7 @@ export function RecordsList() {
   }
 
   const rows: Row[] =
-    data?.results.map((record) => ({
+    data?.results?.map((record) => ({
       id: String(record.id),
       name: `${record.first_name} ${record.last_name}`.trim(),
       email: record.email,
@@ -304,6 +304,7 @@ export function RecordsList() {
                 ),
               },
               {
+                id: 'actions',
                 header: 'Actions',
                 renderCell: (row: Row) => (
                   <Stack direction="horizontal" gap="condensed">

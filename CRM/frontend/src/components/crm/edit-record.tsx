@@ -51,14 +51,7 @@ export function EditRecord({ id }: Props) {
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: 'var(--base-size-24)',
-          border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-          borderRadius: 'var(--borderRadius-large)',
-          backgroundColor: 'var(--bgColor-default)',
-        }}
-      >
+      <div className="crm-card">
         <Text style={{ color: 'var(--fgColor-muted)' }}>
           Loading record…
         </Text>
@@ -68,14 +61,7 @@ export function EditRecord({ id }: Props) {
 
   if (!record) {
     return (
-      <div
-        style={{
-          padding: 'var(--base-size-24)',
-          border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-          borderRadius: 'var(--borderRadius-large)',
-          backgroundColor: 'var(--bgColor-default)',
-        }}
-      >
+      <div className="crm-card">
         <Text style={{ color: 'var(--fgColor-muted)' }}>
           Record not found.
         </Text>
@@ -85,14 +71,7 @@ export function EditRecord({ id }: Props) {
 
   return (
     <Stack direction="vertical" gap="normal">
-      <div
-        style={{
-          padding: 'var(--base-size-24)',
-          border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-          borderRadius: 'var(--borderRadius-large)',
-          backgroundColor: 'var(--bgColor-default)',
-        }}
-      >
+      <div className="crm-card">
         <RecordForm
           initial={record}
           submitLabel="Save changes"
