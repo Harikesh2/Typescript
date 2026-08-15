@@ -1,0 +1,57 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { NavList } from '@primer/react';
+import {
+  HomeIcon,
+  PeopleIcon,
+  PlusIcon,
+  SignOutIcon,
+  GraphIcon,
+} from '@primer/octicons-react';
+
+export function AppSidebar() {
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  }
+
+  return (
+    <NavList aria-label="Main">
+      <NavList.Item href="/dashboard">
+        <NavList.LeadingVisual>
+          <HomeIcon />
+        </NavList.LeadingVisual>
+        Dashboard
+      </NavList.Item>
+      <NavList.Item href="/records">
+        <NavList.LeadingVisual>
+          <PeopleIcon />
+        </NavList.LeadingVisual>
+        Records
+      </NavList.Item>
+      <NavList.Item href="/records/new">
+        <NavList.LeadingVisual>
+          <PlusIcon />
+        </NavList.LeadingVisual>
+        Add Record
+      </NavList.Item>
+      <NavList.Item href="/reports">
+        <NavList.LeadingVisual>
+          <GraphIcon />
+        </NavList.LeadingVisual>
+        Reports
+      </NavList.Item>
+      <NavList.Divider />
+      <NavList.Item onSelect={handleLogout}>
+        <NavList.LeadingVisual>
+          <SignOutIcon />
+        </NavList.LeadingVisual>
+        Logout
+      </NavList.Item>
+    </NavList>
+  );
+}

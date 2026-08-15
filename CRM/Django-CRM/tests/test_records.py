@@ -104,7 +104,7 @@ def test_records_delete_anonymous_forbidden(api_client, db):
     )
 
     response = api_client.delete(f'/api/records/{record.pk}/')
-    assert response.status_code == 403
+    assert response.status_code == 401
     assert Record.objects.filter(pk=record.pk).exists()
 
 
@@ -251,7 +251,7 @@ def test_records_list_returns_seeded(api_client, db):
 
 def test_records_create_anonymous_forbidden(api_client, db):
     response = api_client.post('/api/records/', {'first_name': 'Bogus'})
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_records_create_returns_201(auth_client, db):
@@ -308,3 +308,94 @@ def test_records_create_missing_fields_400(auth_client, db):
     errors = response.json()
     for field in ('last_name', 'email', 'phone', 'address', 'city', 'state', 'zipcode'):
         assert field in errors
+
+
+def test_records_list_search_filters_by_name(api_client, db, make_record):
+    make_record(first_name='John')
+    make_record(first_name='Jane', email='jane@example.com')
+
+    response = api_client.get('/api/records/', {'search': 'John'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]['first_name'] == 'John'
+
+
+def test_records_list_search_filters_by_email(api_client, db, make_record):
+    make_record()
+    make_record(first_name='Jane', email='jane@example.com')
+
+    response = api_client.get('/api/records/', {'search': 'jane@example.com'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['email'] == 'jane@example.com'
+
+
+def test_records_list_state_filter(api_client, db, make_record):
+    make_record(state='IL')
+    make_record(first_name='Jane', state='CA')
+
+    response = api_client.get('/api/records/', {'state': 'CA'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['state'] == 'CA'
+
+
+def test_records_list_state_filter_case_insensitive(api_client, db, make_record):
+    make_record(state='IL')
+    make_record(first_name='Jane', state='CA')
+
+    response = api_client.get('/api/records/', {'state': 'ca'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['state'] == 'CA'
+
+
+def test_records_list_ordering(api_client, db, make_record):
+    make_record(first_name='John')
+    make_record(first_name='Jane')
+
+    response = api_client.get('/api/records/', {'ordering': '-first_name'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert [r['first_name'] for r in data] == ['John', 'Jane']
+
+
+def test_records_list_page_param_returns_paginated(api_client, db, make_record):
+    make_record()
+    make_record(first_name='Jane')
+    make_record(first_name='Bob')
+
+    response = api_client.get('/api/records/', {'page': '1'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert isinstance(data, dict)
+    assert data['count'] == 3
+    assert len(data['results']) == 3
+    assert data['next'] is None
+    assert data['previous'] is None
+    assert set(data.keys()) == {'count', 'next', 'previous', 'results'}
+
+
+def test_records_list_page_size_param(api_client, db, make_record):
+    make_record()
+    make_record(first_name='Jane')
+    make_record(first_name='Bob')
+
+    response = api_client.get('/api/records/', {'page': '1', 'page_size': '2'})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data['count'] == 3
+    assert len(data['results']) == 2
+    assert data['next'] is not None

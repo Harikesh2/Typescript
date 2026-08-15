@@ -1,6 +1,7 @@
 django>=4.1
 djangorestframework
-mysqlclient
+psycopg[binary]
+python-dotenv
 gunicorn
 whitenoise
 pytest

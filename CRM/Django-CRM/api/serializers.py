@@ -14,10 +14,18 @@ class RecordSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at',)
 
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = ('id', 'username', 'email')
+
+
 class RegisterSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, min_length=8)
+    token = serializers.CharField(read_only=True)
 
     def validate(self, attrs):
         if get_user_model().objects.filter(username=attrs['username']).exists():
@@ -33,10 +41,6 @@ class RegisterSerializer(serializers.Serializer):
             password=validated_data['password'],
         )
         token, _ = Token.objects.get_or_create(user=user)
-        return user, token
-
-    def to_representation(self, instance):
-        user, token = instance
         return {
             'id': user.pk,
             'username': user.username,

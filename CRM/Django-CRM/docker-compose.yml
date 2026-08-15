@@ -1,18 +1,17 @@
 version: "3.9"
 services:
   db:
-    image: mysql:8.0
+    image: postgres:16
     environment:
-      MYSQL_DATABASE: elderco
-      MYSQL_USER: crmuser
-      MYSQL_PASSWORD: password123
-      MYSQL_ROOT_PASSWORD: password123
+      POSTGRES_DB: elderco
+      POSTGRES_USER: crmuser
+      POSTGRES_PASSWORD: password123
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "crmuser", "-ppassword123"]
+      test: ["CMD-SHELL", "pg_isready -U crmuser -d elderco"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,9 +19,7 @@ services:
 
   web:
     build: .
-    command: >
-      sh -c "python manage.py migrate &&
-             gunicorn dcrm.wsgi:application --bind 0.0.0.0:8000"
+    command: gunicorn dcrm.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
@@ -30,8 +27,25 @@ services:
     env_file:
       - .env
     depends_on:
-        db:
-          condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      - DJANGO_API_URL=http://web:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      web:
+        condition: service_healthy
 
 volumes:
-  mysql_data:
+  postgres_data:
