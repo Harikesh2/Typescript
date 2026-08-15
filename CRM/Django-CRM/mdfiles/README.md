@@ -1,6 +1,6 @@
 # Django CRM — DRF JSON API
 
-Django 4.1 CRM backed by PostgreSQL (D-24), with an additive Django REST Framework JSON API secured by DRF **Token Authentication**. The existing HTML `website` app is untouched; the API lives in the separate `api` app under `/api/`.
+Django 4.1 CRM backed by PostgreSQL (D-24), with an additive Django REST Framework JSON API secured by DRF **Token Authentication**. The `website` app hosts the `Record` model, admin, DB-schema checks, and the healthcheck command; the JSON API lives in the separate `api` app under `/api/`. The legacy server-rendered UI was removed (D-35).
 
 Docs: [FEATURES.md](FEATURES.md) (features implemented) · [PLAN.md](PLAN.md) (current working plan)
 

@@ -386,6 +386,37 @@
 
 - ✅ COMPLETED — folded into the Phase 5 gate: `python -m pytest`, `npm run build`, `npm run lint`, and e2e smoke all pass (2026-08-13).
 
+## Phase 0 — Repo cleanup (2026-08-15)
+
+**Status:** IN PROGRESS · **Gate:** `python -m pytest` green; `/records` shows real DB data; `/` returns 404 (no legacy UI)
+
+### Files touched
+
+- `Django-CRM/mydb.py` (deleted — orphaned MySQL helper, obsolete after D-24)
+- `Django-CRM/website/templates/` (deleted — all legacy Bootstrap templates)
+- `Django-CRM/website/views.py` (deleted — function-based views)
+- `Django-CRM/website/forms.py` (deleted)
+- `Django-CRM/website/urls.py` (deleted)
+- `Django-CRM/dcrm/urls.py` (removed `path('', include('website.urls'))` mount)
+- `README.md` (root — dropped legacy UI feature bullet, `mydb.py` references, "Legacy Web Routes" table, `/` mention; slimmed `website/` structure block)
+- `Django-CRM/mdfiles/README.md` ("website app untouched" line → legacy UI removed note)
+- `AGENTS.md` (root — stale "legacy templates exist" lines → removed legacy UI, updated `website/` description)
+- `Django-CRM/mdfiles/PLAN.md` (Phase 0 → IN PROGRESS)
+- `Django-CRM/mdfiles/CHANGELOG.md`
+- `Django-CRM/mdfiles/FEATURES.md`
+
+### Changes made
+
+- **Legacy UI removed (D-35, supersedes D-03)** — deleted `mydb.py`, `website/templates/` (7 Bootstrap templates), and the function-based `website/views.py`/`forms.py`/`urls.py`. Removed the `path('', include('website.urls'))` mount from `dcrm/urls.py`; root URLconf now serves `/api/` and `/admin/` only (`/` → 404). The `website` app itself stays — it hosts the `Record` model, `admin.py`, `checks.py`, and the `healthcheck` command.
+- **Docs de-crufted** — root README dropped the deprecated-UI feature bullet, the `mydb.py` lines (project structure + Getting Started), the "Legacy Web Routes" table (replaced with a short "(removed)" note), and the "legacy UI at :8000/" mention; the `website/` structure block now lists only model/admin/checks/migrations/management. `mdfiles/README.md` and `AGENTS.md` updated to reflect that no legacy UI remains.
+- **Verified safe** — no test or code references `website.views`/`website.forms`/`website.urls`; tests import only `website.models.Record`; nothing in the frontend calls legacy routes.
+
+### Verification
+
+- `python -m pytest` — ⏳ pending (user runs gate).
+- `/records` loads real DB data via Django — ⏳ pending (user).
+- `/` returns 404 / no longer serves legacy UI — ⏳ pending (user).
+
 ## AI Lead Scoring — plan created (2026-08-15)
 
 **Status:** PLAN (docs only — no code yet) · **Gate:** N/A (documentation pass)

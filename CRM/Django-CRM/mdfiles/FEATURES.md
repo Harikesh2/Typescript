@@ -43,10 +43,10 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 29 | Runtime `DJANGO_API_URL` | BFF proxy reads `process.env` at runtime | ✅ | 5 | 2026-08-13 | D-22; overridable without rebuild (e.g. compose `http://web:8000`) |
 | 30 | DEBUG env toggle | `dcrm/settings.py` | ✅ | 5 | 2026-08-13 | `os.environ.get('DEBUG', 'True')`; `.env.example` template |
 | 31 | CI frontend job | `.github/workflows/ci.yml` | ✅ | 5 | 2026-08-13 | `npm ci` + `npm run lint` + `npm run build`; `CRM/frontend/**` paths |
-| 32 | Legacy UI deprecated | `website/templates/base.html` | ✅ | 5 | 2026-08-13 | Deprecation banner comment (D-03) |
+| 32 | Legacy UI removed | `website/templates/`, `website/views.py`, `website/forms.py`, `website/urls.py`, `mydb.py` | ✅ | 0 | 2026-08-15 | D-35 supersedes D-03; `/` now 404 |
 | 33 | PostgreSQL runtime DB | `dcrm/settings.py`, compose `postgres:16` | ✅ | — | 2026-08-13 | D-24; `psycopg2-binary`; SQLite stays for tests only |
 | 34 | DB schema healthcheck | `python manage.py healthcheck` + `website/checks.py` + compose gate | ✅ | — | 2026-08-13 | D-25; detect-and-fail; Warning-level system check; skipped on SQLite |
-| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | 📋 | 0–6 | 2026-08-15 | Moonshot via Lambda; plan + decisions only, no code yet (D-34 → D-42) |
+| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | 🚧 | 0–6 | 2026-08-15 | Moonshot via Lambda; Phase 0 cleanup done (D-34 → D-42) |
 
 ## Implemented features (detailed)
 
@@ -119,7 +119,7 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 - **Runtime `DJANGO_API_URL` (D-22)** — build-time `env` bake removed from `next.config.ts`; the BFF proxy reads `process.env.DJANGO_API_URL` at runtime (fallback `http://localhost:8000`), so containers/deploy environments override the backend URL without a rebuild.
 - **DEBUG env toggle** — `Django-CRM/dcrm/settings.py` reads `DEBUG` from the environment (`True` default in dev); `Django-CRM/.env.example` ships the `SECRET_KEY`/`DEBUG`/`DB_*` template.
 - **CI frontend job** — `.github/workflows/ci.yml` now triggers on `CRM/frontend/**` and adds a `frontend` job (`setup-node 22` + npm cache, `npm ci`, `npm run lint`, `npm run build`).
-- **Legacy UI deprecated (D-03)** — `website/templates/base.html` carries an HTML comment marking the Bootstrap templates deprecated in favor of `/frontend`.
+- **Legacy UI removed (D-35, supersedes D-03)** — `website/templates/` (Bootstrap templates), the function-based `website/views.py`/`forms.py`/`urls.py`, and `mydb.py` deleted; the `path('', include('website.urls'))` mount dropped from `dcrm/urls.py`, so `/` serves only `/api/` and `/admin/` (D-35 supersedes D-03).
 
 ## Planned / next features
 

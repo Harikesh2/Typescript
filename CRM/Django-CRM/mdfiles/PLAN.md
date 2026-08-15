@@ -37,7 +37,7 @@ See `DECISIONS.md` for full rationale (D-34 → D-42). Summary: feature kickoff 
 
 ## Phases
 
-### Phase 0 — Repo cleanup — NOT STARTED
+### Phase 0 — Repo cleanup — IN PROGRESS
 
 - Delete `Django-CRM/mydb.py` (orphaned MySQL helper, obsolete after D-24).
 - Delete `website/templates/` (all legacy Bootstrap templates).

@@ -1,6 +1,6 @@
 # Django CRM — Next.js Frontend + DRF JSON API
 
-A customer relationship management application structured as a monorepo: a Django backend (in `Django-CRM/`) exposing a Django REST Framework JSON API, and a Next.js frontend (in `frontend/`) consuming it. The backend also retains the original server-rendered Bootstrap UI (now deprecated) for backward compatibility during the migration.
+A customer relationship management application structured as a monorepo: a Django backend (in `Django-CRM/`) exposing a Django REST Framework JSON API, and a Next.js frontend (in `frontend/`) consuming it.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ A customer relationship management application structured as a monorepo: a Djang
 - [Usage](#usage)
   - [REST API](#rest-api)
   - [Frontend Routes](#frontend-routes)
-  - [Legacy Web Routes](#legacy-web-routes-deprecated)
+  - [Legacy Web Routes](#legacy-web-routes-removed)
 - [Configuration Reference](#configuration-reference)
 - [Testing](#testing)
 - [Roadmap](#roadmap)
@@ -31,7 +31,6 @@ A customer relationship management application structured as a monorepo: a Djang
 - **Next.js frontend** — App Router + TypeScript app built on GitHub Primer, with login, register, dashboard, and records routes.
 - **BFF proxy auth** — Browser JS never touches the token: the Next.js proxy stores it in an httpOnly cookie and injects `Authorization: Token <key>` on proxied API calls.
 - **AI Lead Scoring (planned)** — Score leads 1–10 with a one-sentence reason via Moonshot + AWS Lambda; manual trigger, polling UI, and a color-coded badge.
-- **Legacy UI (deprecated)** — The original server-rendered Bootstrap/Django-template pages still work but are slated for removal (see [DECISIONS.md](Django-CRM/mdfiles/DECISIONS.md) D-03).
 - **Test suite** — pytest + pytest-django on in-memory SQLite (no local database needed).
 - **CI** — monorepo workflow at [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the backend suite (`python -m pytest`) on every push/PR to `main` affecting `CRM/Django-CRM/**`.
 
@@ -59,7 +58,6 @@ CRM/
 │   ├── Dockerfile              # Python 3.12 image + gunicorn
 │   ├── docker-compose.yml      # PostgreSQL 16 + web + frontend services
 │   ├── manage.py               # Django management CLI
-│   ├── mydb.py                 # Orphaned MySQL helper script (unused after D-24)
 │   ├── requirements.txt        # Python dependencies
 │   ├── .env.example            # Environment template
 │   ├── pytest.ini              # pytest config (dcrm.settings_test)
@@ -70,14 +68,12 @@ CRM/
 │   │   ├── urls.py             # Root URL configuration (mounts /api/)
 │   │   ├── wsgi.py             # WSGI entrypoint
 │   │   └── asgi.py             # ASGI entrypoint
-│   ├── website/                # Legacy server-rendered app (deprecated)
+│   ├── website/                # Django app hosting the Record model
 │   │   ├── models.py           # Record model
-│   │   ├── views.py            # Function-based views
-│   │   ├── forms.py            # SignUpForm and AddRecordForm
 │   │   ├── admin.py            # Admin registration
-│   │   ├── urls.py             # App URL routes
+│   │   ├── checks.py           # DB schema system check
 │   │   ├── migrations/         # Database migrations
-│   │   └── templates/          # Bootstrap HTML templates (deprecated)
+│   │   └── management/         # healthcheck command
 │   ├── api/                    # DRF JSON API app
 │   │   ├── views.py            # API views (records, stats, auth)
 │   │   ├── serializers.py      # RecordSerializer, UserSerializer, ...
@@ -135,7 +131,6 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 4. Create the database (either option) and apply migrations
-python mydb.py                  # or manually: CREATE DATABASE elderco ...
 python manage.py migrate
 
 # 5. (Optional) Create an admin user
@@ -145,7 +140,7 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-The API is available at <http://127.0.0.1:8000/api/> (browsable API root) and the legacy UI at <http://127.0.0.1:8000/>.
+The API is available at <http://127.0.0.1:8000/api/> (browsable API root).
 
 ### Frontend (Next.js)
 
@@ -243,20 +238,9 @@ Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are pub
 | `/records/[id]/edit` | Edit-record form | Yes |
 | `/reports` | Summary stats + tables (records per month, records by state) | Yes |
 
-### Legacy Web Routes (deprecated)
+### Legacy Web Routes (removed)
 
-| Route | Description | Auth Required |
-|---|---|---|
-| `/` | Home — login form (guest) or record list (authenticated) | No |
-| `/register/` | Create a new user account | No |
-| `/logout/` | Log out the current user | Yes |
-| `/record/<id>/` | View a single record's details | Yes |
-| `/add_record/` | Create a new record | Yes |
-| `/update_record/<id>/` | Edit an existing record | Yes |
-| `/delete_record/<id>/` | Delete a record | Yes |
-| `/admin/` | Django admin interface | Staff |
-
-> These Bootstrap/Django-template pages are **deprecated** and will be removed once the Next.js frontend covers their functionality (D-03).
+The original server-rendered Bootstrap UI was removed with the Next.js frontend migration (D-35); `/` now returns 404. Only `/api/` and `/admin/` are served.
 
 ## Configuration Reference
 

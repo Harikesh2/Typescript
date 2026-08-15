@@ -5,7 +5,7 @@ Project context for agents. Read once per session; refer to this instead of re-r
 ## What this is
 
 A CRM monorepo with two apps:
-- `Django-CRM/` — Django 4.1 backend + Django REST Framework. JSON API under `/api/`. Token auth (`rest_framework.authtoken`), no CORS (BFF proxy handles auth). Legacy Bootstrap templates in `website/templates/` still exist but are deprecated (D-03).
+- `Django-CRM/` — Django 4.1 backend + Django REST Framework. JSON API under `/api/`. Token auth (`rest_framework.authtoken`), no CORS (BFF proxy handles auth). Legacy Bootstrap UI removed (D-35).
 - `frontend/` — Next.js 16 (App Router, Turbopack) + TypeScript + GitHub Primer (`@primer/react` + `@primer/primitives` + `styled-components`). Talks to the Django API through a BFF proxy (cookie `dcrm_token`).
 
 ## Repo layout
@@ -16,7 +16,7 @@ A CRM monorepo with two apps:
   - `GET /api/stats/` — token-gated aggregates (total/week/month, by_state, newest_record)
   - `GET /api/reports/` — token-gated report aggregates: `records_per_month`, `by_state`, `total_records`, `from`/`to` range filter
   - `POST /api/auth/register/`, `POST /api/auth/token/`, `GET /api/auth/me/`
-- `Django-CRM/website/` — legacy Django app: `models.py` (`Record`), templates, admin. **No model/migration changes** — API is additive only.
+- `Django-CRM/website/` — Django app hosting `models.py` (`Record`), `admin.py`, `checks.py`, and the healthcheck command.
 - `Django-CRM/tests/` — pytest; fixtures in `conftest.py` (`test_user`, `make_record`, `api_client`, `auth_client`).
 - `Django-CRM/mdfiles/` — `PLAN.md` (plan + phase status), `DECISIONS.md` (D-XX log), `CHANGELOG.md` (single changelog), `FEATURES.md` (feature registry), `README.md`.
 - `frontend/src/` — Next.js app.
