@@ -385,3 +385,29 @@
 ### Verification
 
 - ✅ COMPLETED — folded into the Phase 5 gate: `python -m pytest`, `npm run build`, `npm run lint`, and e2e smoke all pass (2026-08-13).
+
+## AI Lead Scoring — plan created (2026-08-15)
+
+**Status:** PLAN (docs only — no code yet) · **Gate:** N/A (documentation pass)
+
+### Files touched
+
+- `Django-CRM/mdfiles/PLAN.md` (rewritten for the AI Lead Scoring feature, Phases 0–6)
+- `Django-CRM/mdfiles/DECISIONS.md` (D-34 → D-42)
+- `Django-CRM/mdfiles/CHANGELOG.md`
+- `Django-CRM/mdfiles/README.md` (API surface + blurb)
+- `Django-CRM/mdfiles/FEATURES.md` (planned registry row)
+- `README.md` (root — AI Lead Scoring section + roadmap)
+
+### Changes made
+
+- New feature plan created from the user's spec: **AI Lead Scoring** via Moonshot + AWS Lambda. Day-by-day labels and AI-generated filler stripped; spec reconciled against the real codebase:
+  - `Record` has no scoring fields and no `updated_at` — both added to Phase 1 (D-37).
+  - No score callback endpoint exists — all three endpoints (`PATCH /score/`, `POST /score-trigger/`, `POST /reset-scoring/`) are new, not "already exists" as the spec claimed.
+  - Phase 0 "wire mock data to real API" was already done (the legacy contacts mock was deleted in the Phase 6 PR-review round); kept only the remaining real cleanup (`mydb.py`, `website/templates/`, legacy views/routes).
+- Decisions D-34 → D-42 appended: feature kickoff; legacy UI removal superseding D-03; model/migration changes allowed; `updated_at`; read-only score fields; 409/400 concurrency semantics; threading fire-and-forget; secret-gated callback; polling strategy.
+- READMEs updated with the new endpoints + an "AI Lead Scoring" section; FEATURES.md gains a planned registry row.
+
+### Verification
+
+- ⏳ Pending — documentation-only; phase gates apply from Phase 0 onward (user runs `pytest`/`build`/`lint`).

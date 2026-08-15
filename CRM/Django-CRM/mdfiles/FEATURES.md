@@ -46,6 +46,7 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 32 | Legacy UI deprecated | `website/templates/base.html` | ✅ | 5 | 2026-08-13 | Deprecation banner comment (D-03) |
 | 33 | PostgreSQL runtime DB | `dcrm/settings.py`, compose `postgres:16` | ✅ | — | 2026-08-13 | D-24; `psycopg2-binary`; SQLite stays for tests only |
 | 34 | DB schema healthcheck | `python manage.py healthcheck` + `website/checks.py` + compose gate | ✅ | — | 2026-08-13 | D-25; detect-and-fail; Warning-level system check; skipped on SQLite |
+| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | 📋 | 0–6 | 2026-08-15 | Moonshot via Lambda; plan + decisions only, no code yet (D-34 → D-42) |
 
 ## Implemented features (detailed)
 
@@ -122,7 +123,7 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 
 ## Planned / next features
 
-- [ ] <Next feature>
+- [ ] AI Lead Scoring (Phases 0–6) — Moonshot via AWS Lambda: manual trigger with 409/400 guards, 3s polling, color-coded badge, reset on timeout
 - [ ] <Another feature>
 
 ## How to add a feature

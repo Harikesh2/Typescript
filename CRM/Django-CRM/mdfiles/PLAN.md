@@ -1,4 +1,4 @@
-# PLAN — Next.js Frontend + Dashboard for Django CRM
+# PLAN — AI Lead Scoring (Moonshot via AWS Lambda) for Django CRM
 
 > Working plan for the next feature round.
 
@@ -18,84 +18,100 @@
 
 ## Goal
 
-Replace the Bootstrap/Django-template UI with a Next.js (App Router, TypeScript) frontend in `frontend/`, backed by the existing DRF API, with a light + soft pastel gradient dashboard. Auth via BFF proxy + httpOnly cookie (token never in browser JS, no CORS).
+Score each CRM lead 1–10 with a one-sentence reason using the Moonshot LLM. A manual "Score Lead" button on the record detail page calls a Django endpoint that forwards the record to an AWS Lambda function; Lambda asks Moonshot and POSTs the score back to Django, which stores it and flips the record back to `IDLE`. The frontend polls until the score lands (60s timeout) and renders it with a color-coded badge. Editing a record invalidates the score and allows re-scoring.
 
 ## Repo analysis (findings)
 
-- Backend: Django 4.1 + DRF Token auth; `/api/records/` CRUD now supports search/ordering/`state` filters + opt-in `?page=` pagination (Phase 0); `/api/auth/register/`, `/api/auth/token/`, `/api/stats/`, `/api/auth/me/`.
-- `tests/test_records.py` asserts `/api/records/` returns a plain array → pagination must be opt-in (D-07).
-- No CORS middleware; not needed with BFF proxy (D-02).
-- `ALLOWED_HOSTS` covers localhost → zero backend host changes for the proxy.
-- DRF token auth is CSRF-exempt → no CSRF handling for the proxy.
-- Tests run on in-memory SQLite via `USE_SQLITE=1` (`tests/conftest.py`); must stay green.
+- Backend: Django 4.1 + DRF; `website/models.Record` has **no** scoring fields and **no `updated_at`** — both must be added (D-37, D-36).
+- No score endpoints exist yet — `PATCH /api/records/<pk>/score/` (Lambda callback), `POST /api/records/<pk>/score-trigger/`, and `POST /api/records/<pk>/reset-scoring/` are all new (the PRD claimed the callback "already exists" — it does not).
+- `RecordSerializer` uses `fields = '__all__'`; score fields must be read-only so the client can never write them (D-38).
+- Legacy cruft still present: `Django-CRM/mydb.py`, `website/templates/`, function-based views in `website/views.py`, and the `path('', include('website.urls'))` mount in `dcrm/urls.py` (D-35).
+- Frontend `/records` already talks to the real API; the legacy mock-data path (`contacts-table.tsx`, `lib/contacts.ts`) was already removed in the Phase 6 PR-review round.
+- The `website` app cannot be deleted — it hosts the `Record` model, `admin.py`, `checks.py`, and the healthcheck command.
+- Tests run on in-memory SQLite (`USE_SQLITE=1`); must stay green (`python -m pytest`).
+- BFF proxy (`/api/[...path]`) already forwards everything to Django with `Authorization: Token <cookie>`; new record endpoints flow through it unchanged.
 
 ## Decisions
 
-See `DECISIONS.md` for full rationale. Summary: frontend in-repo at /frontend (D-01); BFF proxy + httpOnly cookie (D-02); keep legacy templates (D-03); Primer design system, superseding the original pastel plan (D-04→D-10); stats cards first, charts deferred (D-05); /api/stats/ token-gated (D-06); opt-in pagination, minimal (D-07); state filter via queryset override (D-08); stats windows UTC week/month (D-09).
+See `DECISIONS.md` for full rationale (D-34 → D-42). Summary: feature kickoff (D-34); remove legacy website UI, superseding D-03 (D-35); `Record` model + migration changes now allowed for this feature (D-36); add `updated_at=auto_now` for the re-score check (D-37); score fields read-only, only the Lambda callback writes them (D-38); concurrency lock via `scoring_status=PROCESSING` → 409, no-changes → 400 (D-39); fire-and-forget trigger via `threading`, no task queue (D-40); callback gated by a shared `LAMBDA_SECRET` header (D-41); frontend polls 3s / 60s then `reset-scoring` retry (D-42).
 
 ## Phases
 
-### Phase 0 — Backend API additions — ✅ COMPLETED (2026-08-11)
+### Phase 0 — Repo cleanup — NOT STARTED
 
-- Add SearchFilter/OrderingFilter + `state` filter to `ListCreateRecordAPIView` (response stays array).
-- Opt-in pagination: `{count, results}` only when `?page=` present (D-07).
-- New `GET /api/stats/` (token-gated, D-06): total_records, records_this_week, records_this_month, distinct_states, by_state, newest_record.
-- New `GET /api/auth/me/` → {id, username, email} for navbar user chip.
-- New tests (`tests/test_stats.py`, extend auth tests); update FEATURES.md.
-- **Gate:** `python -m pytest` green.
+- Delete `Django-CRM/mydb.py` (orphaned MySQL helper, obsolete after D-24).
+- Delete `website/templates/` (all legacy Bootstrap templates).
+- Delete function-based views in `website/views.py` + `website/forms.py` + `website/urls.py`.
+- Strip the `path('', include('website.urls'))` mount from `dcrm/urls.py` — keep `/api/` and `/admin/` only.
+- Update root `README.md` (drop the legacy UI section) and `mdfiles/README.md`.
+- Verify `/records` still loads real data from Django.
+- **Gate:** `python -m pytest` green; `npm run dev` + Django running → `/records` shows real DB data; `/` no longer serves the legacy UI.
 
-### Phase 1 — Frontend scaffold — ✅ COMPLETED (2026-08-11)
+### Phase 1 — DB migration + API fields — NOT STARTED
 
-- Next.js (App Router, TypeScript) app in `frontend/`; Primer design system (D-10) via `@primer/react` + `@primer/primitives` tokens + `styled-components` registry (Tailwind v4 removed).
-- Shell layout: sidebar (Dashboard, Records, Add Record, Logout) + topbar with user chip.
-- Routes: `/` → redirect `/login` (UI-only placeholder); `/dashboard` (mock stat cards + contacts table); `/records` + `/records/new` stubs. `next.config.ts` carries `DJANGO_API_URL`.
-- **Gate:** `npm run build` passes; shell renders.
+- Extend `Record` (`website/models.py`):
+  - `description = models.TextField(blank=True, null=True)`
+  - `ai_score = models.IntegerField(null=True, blank=True)`
+  - `ai_reason = models.CharField(max_length=255, null=True, blank=True)`
+  - `ai_scored_at = models.DateTimeField(null=True, blank=True)`
+  - `scoring_status = models.CharField(max_length=20, choices=[('IDLE', 'Idle'), ('PROCESSING', 'Processing')], default='IDLE')`
+  - `updated_at = models.DateTimeField(auto_now=True)` (D-37)
+- `python manage.py makemigrations` + `python manage.py migrate`.
+- `RecordSerializer`: `description` read/write; `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status` read_only (D-38).
+- Register endpoints in `api/urls.py` (new): `PATCH records/<pk>/score/` (callback), `POST records/<pk>/score-trigger/`, `POST records/<pk>/reset-scoring/` — stubs OK this phase.
+- New tests (`tests/test_scoring.py`).
+- **Gate:** migration applies; `description` visible in the API; `python -m pytest` green.
 
-### Phase 2 — Auth (BFF proxy + cookie) — ✅ COMPLETED (2026-08-13)
+### Phase 2 — Trigger & reset endpoints — NOT STARTED
 
-- Route handlers: `/api/auth/login|register|logout` (register auto-login); catch-all `/api/[...path]` proxy injecting `Authorization: Token <cookie>`.
-- `proxy.ts` route protection; login + register pages (gradient hero).
-- Cookie `dcrm_token`: httpOnly, secure in prod, sameSite=lax.
-- Login honors `?next=` (in-app allowlist, no open redirect).
-- **Gate:** `npm run build` passes (login/register/logout flow verified e2e).
+- Env vars (`Django-CRM/.env.example`): `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`.
+- New `api/lambda_trigger.py` — fire-and-forget `threading.Thread` that POSTs the record payload to the Lambda Function URL (D-40).
+- `POST score-trigger/` (`api/views.py`):
+  - Fetch record; 404 if missing.
+  - Concurrency: `scoring_status == 'PROCESSING'` → **409** "already processing" (D-39).
+  - Timestamp: `ai_scored_at` set and `updated_at <= ai_scored_at` → **400** "No changes detected. Edit the lead to re-score."
+  - Else set `scoring_status = 'PROCESSING'`, save, fire `trigger_lead_scoring` async → **202 Accepted**.
+- `POST reset-scoring/`:
+  - Fetch record; if `ai_score is None` and `scoring_status == 'PROCESSING'`, set `IDLE` + save → **200** (lets the frontend unstick the lock after timeout).
+- `PATCH score/` (Lambda callback): verify `LAMBDA_SECRET` header (D-41); update `ai_score`, `ai_reason`, `ai_scored_at`; set `scoring_status = 'IDLE'`.
+- **Gate:** `python -m pytest` green; Postman: trigger → 202; second trigger → 409; trigger after score without edits → 400; reset → 200 clears PROCESSING.
 
-### Phase 3 — Dashboard (stats cards) — ✅ COMPLETED (2026-08-13)
+### Phase 3 — AWS Lambda — NOT STARTED
 
-- `/dashboard` fetches `/api/stats/` + recent records → KPI cards (Total, This Week, This Month, Top State) + recent-records preview.
-- `StatCards` rewired to `/api/stats/` (People/Pulse/CheckCircle/Graph icons); new `RecentRecords` component fetches `/api/records/?ordering=-created_at` (plain-array slice of 5); dashboard header renamed "Contacts" → "Dashboard".
-- **Gate:** `npm run build` passes (verified by user); dashboard shows real data.
+- Lambda (Python 3.12, 256 MB, 30s timeout) with Function URL (auth NONE); shared `LAMBDA_SECRET` sent on the callback.
+- `lambda_function.py` — receive the record payload, build the prompt including `description`, call Moonshot, parse `{score, reason}`, POST to `{DJANGO_BASE_URL}/api/records/<id>/score/` with the secret header.
+- Env vars: `MOONSHOT_API_KEY`, `LAMBDA_SECRET`.
+- Test with a test event (payload includes `description`).
+- **Gate:** Lambda test returns a score and the callback lands in Django (local via ngrok or the deployed backend).
 
-### Phase 4 — Records CRUD UI — ✅ COMPLETED (2026-08-13)
+### Phase 4 — Frontend score display & trigger flow — NOT STARTED
 
-- `/records` table: search (name/email), state filter, sort, pagination; `/records/[id]` detail; `/records/new` + `/records/[id]/edit` forms (validation + toasts); delete confirm.
-- `records-list.tsx` (DataTable + search/state/sort via `?search=`/`?state=`/`?ordering=`, Primer `Pagination` via `?page=`, per-row edit/delete); shared `record-form.tsx` (create/edit); `record-detail.tsx` (+ ConfirmationDialog delete, D-19); state dropdown sourced from `/api/stats/` `by_state` (D-20).
-- **Gate:** `npm run build` + `npm run lint` pass; full CRUD against the API verified (user).
+- Extend `frontend/src/lib/types.ts` (`description`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`, `updated_at`).
+- `frontend/src/components/crm/record-detail.tsx`:
+  - "Score Lead" button (disabled while polling / when PROCESSING); spinner + "Scoring…" while waiting.
+  - POST `/api/records/<id>/score-trigger/`; 409 → "Scoring already in progress", 400 → "No changes — edit to re-score".
+  - Poll `GET /api/records/<id>/` every 3s until `ai_score != null` or 60s (D-42).
+  - Timeout → "Something went wrong" + Retry button → `POST /reset-scoring/` → re-enable Score.
+- New `frontend/src/components/crm/lead-score-badge.tsx` — badge 1–3 red, 4–6 yellow, 7–10 green + reason.
+- Button stays visible after scoring; the backend blocks if there are no changes.
+- **Gate:** `npm run build` + `npm run lint` pass; manual e2e: create lead → score → poll → badge appears; edit description → score again → re-score; simultaneous clicks blocked (409).
 
-### Phase 5 — Polish, deploy, deprecate — ✅ COMPLETED (2026-08-13)
+### Phase 5 — Cleanup & docs — NOT STARTED
 
-- `npm run build` + lint clean; pytest green; frontend Dockerfile + compose service (or Railway note).
-- Mark `website/templates` deprecated (D-03); update PLAN.md/FEATURES.md/README.md.
-- **Gate:** all checks pass; run instructions documented.
+- Error-handling audit — all failures silent (record still saves; no UI crash).
+- Update `Django-CRM/.env.example` with all new variables.
+- README: add "AI Lead Scoring" section (ASCII architecture, stack, live demo link).
+- Update FEATURES.md (scoring rows → ✅).
+- **Gate:** fresh clone + README instructions let a developer set up the feature.
 
-### Reporting — API + page — ✅ COMPLETED (2026-08-13) (additional feature)
+### Phase 6 — Deploy — NOT STARTED
 
-- New `GET /api/reports/` (token-gated): `records_per_month` (created_at grouped by month), `by_state` (counts), `total_records`, optional `?from=`/`?to=` date-range filter.
-- Frontend `/reports` route: stat cards + `DataTable` views (monthly counts, state breakdown); sidebar link.
-- **Gate:** `python -m pytest` green; `npm run build` + `npm run lint` pass.
-
-### Phase 6 — PR review M-batch cleanup — ✅ COMPLETED (2026-08-15)
-
-- M1: delete 5 `permission_denied` overrides; anonymous → 401 (tests + FEATURES updated; D-31).
-- M2: register serializer returns dict + read-only `id`/`token` (D-32).
-- M4: retain `.distinct()` on `distinct_states` — the review claimed it was a no-op on `values()`, but `values('state').count()` actually counts all record rows, not distinct states; `.distinct()` is needed to count distinct states. The earlier claim was incorrect.
-- M5: `by_state` tie-break `order_by('-count', 'state')`. M6: shared `by_state(queryset)` helper.
-- M7: `.crm-card` CSS class replaces repeated inline card styles.
-- M8: delete dead `contacts-table.tsx`, `stub-page.tsx`, `lib/contacts.ts` (+ orphaned `placeholder.svg`).
-- H2: verified already resolved — `.github/workflows/ci.yml` exists + committed.
-- M3 (declined, D-33) and L3 (declined) — kept opt-in pagination / current cookie.
-- `mdfiles/PR_REVIEW.md` removed on close-out; all decisions preserved in `DECISIONS.md` (D-25→D-33).
-- **Gate:** `python -m pytest` green (52 passed); `npm run build` + `npm run lint` — ⏳ pending (user).
+- Deploy Django to Railway/Render; set all env vars in production (incl. `DJANGO_BASE_URL`).
+- Lambda `DJANGO_BASE_URL` must point at the deployed Django so callbacks reach it.
+- Test the full flow in production: create lead → score → badge appears.
+- Add a live demo link to README.
+- **Gate:** recruiter can open the live URL and see the feature work end-to-end.
 
 ## Out of scope / handled elsewhere
 
-- Charts/recharts (D-05, deferred to v2), full server-pagination rollout, dark mode, RBAC, leads/deals.
+- Auto-scoring on record creation (manual trigger only), batch scoring, score history, charts, dark mode, RBAC.

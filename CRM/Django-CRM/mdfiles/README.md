@@ -18,8 +18,17 @@ Docs: [FEATURES.md](FEATURES.md) (features implemented) · [PLAN.md](PLAN.md) (c
 | POST | `/api/auth/register/` | public | Create user, returns token |
 | GET | `/api/auth/me/` | token required | Current user `{id, username, email}` |
 | POST | `/api/auth/token/` | public | Obtain token (username/password) |
+| POST | `/api/records/<pk>/score-trigger/` | token required | Start AI scoring: `202`; `409` if already processing; `400` if no changes since last score |
+| POST | `/api/records/<pk>/reset-scoring/` | token required | Clear the `PROCESSING` lock (`200`) so a timed-out score can be retried |
+| PATCH | `/api/records/<pk>/score/` | Lambda callback (shared secret) | Write `ai_score`/`ai_reason`/`ai_scored_at`, reset status to `IDLE` |
 
-Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are public. `/api/stats/`, `/api/reports/`, and `/api/auth/me/` require token auth.
+Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are public. `/api/stats/`, `/api/reports/`, and `/api/auth/me/` require token auth. The `/api/records/<pk>/score/` callback is called by the AWS Lambda scoring function and is gated by the `LAMBDA_SECRET` header (not a user token, D-41).
+
+## AI Lead Scoring
+
+Records carry optional scoring fields (`description`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`) plus `updated_at`. A manual `score-trigger` locks the record (`PROCESSING`, concurrent triggers → 409) and forwards it to an AWS Lambda that asks Moonshot for a 1–10 score + one-sentence reason, then POSTs the result back to the `score/` callback. A `reset-scoring` endpoint un-sticks the lock after a timeout.
+
+Environment variables (see `.env.example`): `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (the base URL Lambda uses for the callback). Status: **planned** — see [PLAN.md](PLAN.md) Phases 0–6.
 
 ## Quick start
 
