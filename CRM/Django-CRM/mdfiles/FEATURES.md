@@ -46,7 +46,7 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 32 | Legacy UI removed | `website/templates/`, `website/views.py`, `website/forms.py`, `website/urls.py`, `mydb.py` | ✅ | 0 | 2026-08-15 | D-35 supersedes D-03; `/` now 404 |
 | 33 | PostgreSQL runtime DB | `dcrm/settings.py`, compose `postgres:16` | ✅ | — | 2026-08-13 | D-24; `psycopg2-binary`; SQLite stays for tests only |
 | 34 | DB schema healthcheck | `python manage.py healthcheck` + `website/checks.py` + compose gate | ✅ | — | 2026-08-13 | D-25; detect-and-fail; Warning-level system check; skipped on SQLite |
-| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | 🚧 | 0–6 | 2026-08-15 | Moonshot via Lambda; Phase 0 cleanup done (D-34 → D-42) |
+| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | 🚧 | 0–6 | 2026-08-15 | Moonshot via Lambda; Phase 0 cleanup + Phase 1 model/API fields + Phase 2 trigger/reset/callback done (D-34 → D-45); Lambda/frontend pending |
 
 ## Implemented features (detailed)
 
@@ -120,6 +120,20 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 - **DEBUG env toggle** — `Django-CRM/dcrm/settings.py` reads `DEBUG` from the environment (`True` default in dev); `Django-CRM/.env.example` ships the `SECRET_KEY`/`DEBUG`/`DB_*` template.
 - **CI frontend job** — `.github/workflows/ci.yml` now triggers on `CRM/frontend/**` and adds a `frontend` job (`setup-node 22` + npm cache, `npm ci`, `npm run lint`, `npm run build`).
 - **Legacy UI removed (D-35, supersedes D-03)** — `website/templates/` (Bootstrap templates), the function-based `website/views.py`/`forms.py`/`urls.py`, and `mydb.py` deleted; the `path('', include('website.urls'))` mount dropped from `dcrm/urls.py`, so `/` serves only `/api/` and `/admin/` (D-35 supersedes D-03).
+
+### AI Lead Scoring (Phase 1)
+
+- **Scoring model fields (D-36/D-37)** — `Record` gained `description`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status` (choices `IDLE`/`PROCESSING`, default `IDLE`), `updated_at` (`auto_now`). Migration `0002_...` applies cleanly on SQLite.
+- **Read-only score fields (D-38)** — `RecordSerializer.read_only_fields` covers `ai_score`/`ai_reason`/`ai_scored_at`/`scoring_status`; only the Lambda callback (Phase 2) writes them. `description` is read/write; `created_at`/`updated_at` stay auto read-only.
+- **Endpoint stubs** — `PATCH /api/records/<pk>/score/`, `POST /api/records/<pk>/score-trigger/`, `POST /api/records/<pk>/reset-scoring/` registered as 501 stubs (`RecordScoreCallbackAPIView`, `RecordScoreTriggerAPIView`, `RecordResetScoringAPIView`); Phase 2 fills in the bodies (409/400 guards, `LAMBDA_SECRET`-gated callback, D-39/D-41).
+- **Tests** — `tests/test_scoring.py`: `description` write/read, forged score fields ignored (create + patch), `scoring_status` defaults to `IDLE`, `updated_at` auto-managed, stubs 501 authenticated / 401 anonymous. Status: ✅ Phase 1 COMPLETED (2026-08-17, `python -m pytest` → 67 passed).
+
+### AI Lead Scoring (Phase 2)
+
+- **Trigger (`POST /api/records/<pk>/score-trigger/`)** — 404 missing → 409 `PROCESSING` → 400 "No changes detected. Edit the lead to re-score." → else set `PROCESSING`, save, fire the trigger thread, **202** (D-39).
+- **Reset (`POST /api/records/<pk>/reset-scoring/`)** — clears a `PROCESSING` lock when no score exists → 200 (D-42 frontend retry path); idempotent otherwise.
+- **Callback (`PATCH /api/records/<pk>/score/`)** — `AllowAny` but secret-gated: missing/wrong `X-Lambda-Secret` → 401 (D-41); validates `ai_score` 1–10 (D-44); writes score/reason and aligns `ai_scored_at = updated_at` via `QuerySet.update` so the 400 guard stays exact (D-43); sets `IDLE`.
+- **`api/lambda_trigger.py`** — `threading.Thread` fire-and-forget POST via stdlib `urllib.request` (D-40/D-45); no-op without `LAMBDA_FUNCTION_URL`. Env vars: `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (`.env.example`). Status: ✅ Phase 2 COMPLETED (2026-08-17, `python -m pytest` → 81 passed; Postman manual flow pending).
 
 ## Planned / next features
 

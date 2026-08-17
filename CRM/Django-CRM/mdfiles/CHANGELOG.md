@@ -2,6 +2,69 @@
 
 > Single changelog for all phase changes. Created once; append per phase. Follows `PLAN.md` (one phase at a time).
 
+## AI Lead Scoring — Phase 2: Trigger & reset endpoints (2026-08-17)
+
+**Status:** COMPLETED · **Gate:** `python -m pytest` green; Postman: trigger → 202; second trigger → 409; trigger after score without edits → 400; reset → 200 clears PROCESSING — ✅ `python -m pytest` → 81 passed (2026-08-17, user); Postman ⏳ pending
+
+### Files touched
+
+- `Django-CRM/.env.example` (`LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`)
+- `Django-CRM/dcrm/settings.py` (`LAMBDA_FUNCTION_URL`/`LAMBDA_SECRET` from env, empty default)
+- `Django-CRM/api/lambda_trigger.py` (new — D-40/D-45)
+- `Django-CRM/api/views.py` (3 stub views → real implementations)
+- `Django-CRM/tests/test_scoring.py` (stub tests removed; state-machine + callback + trigger-module tests)
+- `mdfiles/PLAN.md` (Phase 2 → IN PROGRESS)
+- `mdfiles/DECISIONS.md` (D-43, D-44, D-45)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **Env + settings** — `.env.example` documents `LAMBDA_FUNCTION_URL` (the Function URL Django POSTs the record to), `LAMBDA_SECRET` (shared secret the callback verifies), `DJANGO_BASE_URL` (the Lambda's callback target — documented for Phase 3; Django doesn't consume it). `dcrm/settings.py` reads `LAMBDA_FUNCTION_URL`/`LAMBDA_SECRET` with empty defaults so dev/pytest never need them (and `override_settings` makes them testable).
+- **`api/lambda_trigger.py` (new, D-40/D-45)** — `build_payload(record)` serializes the contact fields + `description` (no score state — the Lambda only needs lead context); `trigger_lead_scoring(record)` spawns a **daemon** `threading.Thread` running `_post_to_lambda(url, payload, secret)`, which POSTs JSON via stdlib `urllib.request` (`Content-Type: application/json`, `X-Lambda-Secret`, 35s timeout — above the 30s Lambda timeout) and logs failures without crashing. **No-op + warning when `LAMBDA_FUNCTION_URL` is unset** (D-45) — dev/pytest never fire a thread or hit the network.
+- **`POST /api/records/<pk>/score-trigger/`** — 404 missing → 409 `PROCESSING` → 400 `No changes detected. Edit the lead to re-score.` → else set `PROCESSING`, save, fire `trigger_lead_scoring`, **202**. Global `IsAuthenticatedOrReadOnly` keeps it anonymous → 401.
+- **`POST /api/records/<pk>/reset-scoring/`** — 404 missing → if `ai_score is None and PROCESSING`: set `IDLE` + save → 200 (frontend timeout retry); otherwise idempotent 200 (existing score preserved).
+- **`PATCH /api/records/<pk>/score/`** (Lambda callback) — `AllowAny` + `authentication_classes=[]`; missing/wrong `X-Lambda-Secret` header → 401 (D-41); 404 missing; `ai_score` must be an integer 1–10 else 400 (D-44); writes `ai_score`/`ai_reason` (truncated 255), then `Record.objects.filter(pk=...).update(ai_scored_at=record.updated_at)` — **D-43**: `QuerySet.update` bypasses `auto_now`, so `ai_scored_at == updated_at` and the trigger's `updated_at <= ai_scored_at → 400` guard fires until a real client edit advances `updated_at` (a plain `save()` would bump `updated_at` past `ai_scored_at` and permanently defeat the guard).
+- **Tests** — removed the 3 stub-501 tests; added: trigger 202→PROCESSING / 409 / 400-no-changes / 202-after-edit / 404; reset clears-PROCESSING / idempotent / keeps-score / 404; callback wrong-secret 401 / missing-secret 401 / valid-secret 200 writes + `ai_scored_at == updated_at` + IDLE / out-of-range 400 / 404; `build_payload` shape; `trigger_lead_scoring` no-op without URL; `_post_to_lambda` sends the right URL/method/body/secret/35s-timeout (via monkeypatched `urlopen`). View tests monkeypatch `api.views.trigger_lead_scoring` so no thread ever spawns. Existing `test_scoring_endpoints_require_auth` stays green (callback without secret → 401).
+
+### Verification
+
+- `python -m py_compile` on changed files — ✅ compiles (implementation-time sanity check).
+- `python -m pytest` — ✅ 81 passed (2026-08-17, user). Two test bugs found on the first gate run and fixed in the same session: `get_header('X-Lambda-Secret')` asserted None (urllib stores headers via `key.capitalize()`, so the canonical read is `get_header('X-lambda-secret')`; production unaffected — the wire sends the header and Django/Lambda read it case-insensitively) and `test_score_callback_missing_record_returns_404` lacked the `db` fixture (RuntimeError on `get_object_or_404` DB access).
+- Postman: trigger → 202; second trigger → 409; trigger after score without edits → 400; reset → 200 clears PROCESSING — ⏳ pending (user).
+
+## AI Lead Scoring — Phase 1: DB migration + API fields (2026-08-17)
+
+**Status:** COMPLETED · **Gate:** migration applies; `description` visible in the API; `python -m pytest` green — ✅ 67 passed (2026-08-17)
+
+### Files touched
+
+- `Django-CRM/website/models.py` (6 new `Record` fields — D-36/D-37)
+- `Django-CRM/website/migrations/0002_record_ai_reason_record_ai_score_record_ai_scored_at_and_more.py` (new)
+- `Django-CRM/api/serializers.py` (`read_only_fields` — D-38)
+- `Django-CRM/api/views.py` (3 stub views → 501)
+- `Django-CRM/api/urls.py` (3 new routes)
+- `Django-CRM/tests/test_records.py` (exact field-set assertion updated)
+- `Django-CRM/tests/test_scoring.py` (new)
+- `mdfiles/PLAN.md` (Phase 1 → IN PROGRESS)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **Model (D-36/D-37)** — `Record` gained `description` (`TextField`, blank/null), `ai_score` (`IntegerField`, null), `ai_reason` (`CharField` 255, null), `ai_scored_at` (`DateTimeField`, null), `scoring_status` (`CharField`, choices `IDLE`/`PROCESSING`, default `IDLE`), `updated_at` (`DateTimeField(auto_now=True)`, D-37 — drives the Phase 2 no-changes 400 check).
+- **Migration** — `makemigrations website` generated `0002_record_ai_reason_record_ai_score_record_ai_scored_at_and_more.py`; applies cleanly on in-memory SQLite.
+- **Serializer (D-38)** — `RecordSerializer.read_only_fields` now includes `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`, so only the Lambda callback (Phase 2) can write them. `description` stays read/write; `created_at`/`updated_at` remain auto read-only (`editable=False`).
+- **Endpoints registered (stubs, 501)** — `RecordScoreCallbackAPIView` (`PATCH records/<pk>/score/`), `RecordScoreTriggerAPIView` (`POST records/<pk>/score-trigger/`), `RecordResetScoringAPIView` (`POST records/<pk>/reset-scoring/`) each return `501 Not implemented yet.`. URL wiring + test infra proven now; Phase 2 fills in the bodies (409/400/secret-gated callback).
+- **`test_records.py` fix** — the list endpoint's exact field-set assertion extended with the 6 new serializer fields (adding fields broke the old `==` set comparison).
+- **New `tests/test_scoring.py`** — URL resolution for all 3 routes; `description` writable (POST/PATCH) + visible; `scoring_status` defaults to `IDLE`; forged score fields ignored on create AND patch (read-only enforcement); `updated_at` present, auto-managed (advances on PATCH), not client-settable; stubs → 501 authenticated / 401 anonymous.
+
+### Verification
+
+- `USE_SQLITE=1 python3 manage.py makemigrations website` — ✅ `0002_...` created.
+- `USE_SQLITE=1 python3 manage.py migrate` — ✅ applies cleanly (in-memory SQLite).
+- `USE_SQLITE=1 python3 manage.py check` — ✅ no issues.
+- `python -m pytest` — ✅ 67 passed (2026-08-17, user).
+- `description` visible in the API — ✅ (covered by `test_scoring.py`).
+
 ## PR review `new_ui` — closed out (2026-08-15)
 
 **Status:** COMPLETE
@@ -388,7 +451,7 @@
 
 ## Phase 0 — Repo cleanup (2026-08-15)
 
-**Status:** IN PROGRESS · **Gate:** `python -m pytest` green; `/records` shows real DB data; `/` returns 404 (no legacy UI)
+**Status:** COMPLETED · **Gate:** `python -m pytest` green; `/records` shows real DB data; `/` returns 404 (no legacy UI)
 
 ### Files touched
 
@@ -413,7 +476,7 @@
 
 ### Verification
 
-- `python -m pytest` — ⏳ pending (user runs gate).
+- `python -m pytest` — ✅ 52 passed (2026-08-15).
 - `/records` loads real DB data via Django — ⏳ pending (user).
 - `/` returns 404 / no longer serves legacy UI — ⏳ pending (user).
 

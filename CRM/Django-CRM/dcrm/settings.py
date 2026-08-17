@@ -9,6 +9,11 @@ load_dotenv(BASE_DIR / '.env')
 # Use SQLite when running tests (set by conftest.py) or via USE_SQLITE=1.
 USE_SQLITE = os.environ.get('USE_SQLITE') == '1'
 
+# AI Lead Scoring: Lambda Function URL the trigger POSTs to + shared secret the
+# callback verifies. Empty in dev/test -> trigger no-ops and callback rejects all.
+LAMBDA_FUNCTION_URL = os.environ.get('LAMBDA_FUNCTION_URL', '')
+LAMBDA_SECRET = os.environ.get('LAMBDA_SECRET', '')
+
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-jcxge@8cwms-4-$&qia^6p+^8-qwrsw7vey#0e6e326apg3mvo')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = [
