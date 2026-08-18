@@ -1,6 +1,6 @@
 # Django CRM — Next.js Frontend + DRF JSON API
 
-A customer relationship management application structured as a monorepo: a Django backend (in `Django-CRM/`) exposing a Django REST Framework JSON API, and a Next.js frontend (in `frontend/`) consuming it. The backend also retains the original server-rendered Bootstrap UI (now deprecated) for backward compatibility during the migration.
+A customer relationship management application structured as a monorepo: a Django backend (in `Django-CRM/`) exposing a Django REST Framework JSON API, and a Next.js frontend (in `frontend/`) consuming it.
 
 ## Table of Contents
 
@@ -11,10 +11,11 @@ A customer relationship management application structured as a monorepo: a Djang
   - [Backend (Django)](#backend-django)
   - [Frontend (Next.js)](#frontend-nextjs)
 - [Docker Deployment](#docker-deployment)
+- [AI Lead Scoring](#ai-lead-scoring)
 - [Usage](#usage)
   - [REST API](#rest-api)
   - [Frontend Routes](#frontend-routes)
-  - [Legacy Web Routes](#legacy-web-routes-deprecated)
+  - [Legacy Web Routes](#legacy-web-routes-removed)
 - [Configuration Reference](#configuration-reference)
 - [Testing](#testing)
 - [Roadmap](#roadmap)
@@ -29,7 +30,7 @@ A customer relationship management application structured as a monorepo: a Djang
 - **Auth API** — `POST /api/auth/register/` and `/api/auth/token/` issue tokens; `GET /api/auth/me/` returns the current user.
 - **Next.js frontend** — App Router + TypeScript app built on GitHub Primer, with login, register, dashboard, and records routes.
 - **BFF proxy auth** — Browser JS never touches the token: the Next.js proxy stores it in an httpOnly cookie and injects `Authorization: Token <key>` on proxied API calls.
-- **Legacy UI (deprecated)** — The original server-rendered Bootstrap/Django-template pages still work but are slated for removal (see [DECISIONS.md](Django-CRM/mdfiles/DECISIONS.md) D-03).
+- **AI Lead Scoring** — Score leads 1–10 with a one-sentence reason via Moonshot + AWS Lambda; manual trigger, polling UI, and a color-coded badge.
 - **Test suite** — pytest + pytest-django on in-memory SQLite (no local database needed).
 - **CI** — monorepo workflow at [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the backend suite (`python -m pytest`) on every push/PR to `main` affecting `CRM/Django-CRM/**`.
 
@@ -42,6 +43,7 @@ A customer relationship management application structured as a monorepo: a Djang
 | Database | PostgreSQL 16 (tests use in-memory SQLite) |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Frontend UI | GitHub Primer (`@primer/react`) + `styled-components` |
+| AI Scoring | AWS Lambda (Python 3.12) + Moonshot LLM |
 | Web Server | Gunicorn (backend), Next.js (frontend) |
 | Static Files | WhiteNoise |
 | Testing | pytest, pytest-django |
@@ -56,7 +58,6 @@ CRM/
 │   ├── Dockerfile              # Python 3.12 image + gunicorn
 │   ├── docker-compose.yml      # PostgreSQL 16 + web + frontend services
 │   ├── manage.py               # Django management CLI
-│   ├── mydb.py                 # Orphaned MySQL helper script (unused after D-24)
 │   ├── requirements.txt        # Python dependencies
 │   ├── .env.example            # Environment template
 │   ├── pytest.ini              # pytest config (dcrm.settings_test)
@@ -67,14 +68,12 @@ CRM/
 │   │   ├── urls.py             # Root URL configuration (mounts /api/)
 │   │   ├── wsgi.py             # WSGI entrypoint
 │   │   └── asgi.py             # ASGI entrypoint
-│   ├── website/                # Legacy server-rendered app (deprecated)
+│   ├── website/                # Django app hosting the Record model
 │   │   ├── models.py           # Record model
-│   │   ├── views.py            # Function-based views
-│   │   ├── forms.py            # SignUpForm and AddRecordForm
 │   │   ├── admin.py            # Admin registration
-│   │   ├── urls.py             # App URL routes
+│   │   ├── checks.py           # DB schema system check
 │   │   ├── migrations/         # Database migrations
-│   │   └── templates/          # Bootstrap HTML templates (deprecated)
+│   │   └── management/         # healthcheck command
 │   ├── api/                    # DRF JSON API app
 │   │   ├── views.py            # API views (records, stats, auth)
 │   │   ├── serializers.py      # RecordSerializer, UserSerializer, ...
@@ -132,7 +131,6 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 4. Create the database (either option) and apply migrations
-python mydb.py                  # or manually: CREATE DATABASE elderco ...
 python manage.py migrate
 
 # 5. (Optional) Create an admin user
@@ -142,7 +140,7 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-The API is available at <http://127.0.0.1:8000/api/> (browsable API root) and the legacy UI at <http://127.0.0.1:8000/>.
+The API is available at <http://127.0.0.1:8000/api/> (browsable API root).
 
 ### Frontend (Next.js)
 
@@ -179,6 +177,35 @@ This starts:
 
 `DJANGO_API_URL` is read at runtime (D-22), so the backend URL can be overridden without a rebuild, e.g. `docker-compose up -e DJANGO_API_URL=https://api.example.com`.
 
+## AI Lead Scoring
+
+Each lead can be scored 1–10 with a one-sentence reason using the Moonshot LLM, triggered manually from the record detail page. Status: **implemented** — Phases 0–5 complete (deploy pending, see [`Django-CRM/mdfiles/PLAN.md`](Django-CRM/mdfiles/PLAN.md)). Live demo: pending deployment (Phase 6).
+
+```
+ Score Lead           record payload               PROMPT (incl. description)          score + reason
+[Next.js] ──────▶ [Django /score-trigger/] ─────────────────▶ [AWS Lambda] ───────────────▶ [Moonshot]
+     ▲                     │ 202 Accepted (status=PROCESSING)                                  │
+     │                     │                                                                   │
+     │                     │    PATCH /api/records/<id>/score/  (header LAMBDA_SECRET) ◀────────┘
+     │                     ▼                          │
+     │            [Django saves ai_score/ai_reason,   │
+     │             ai_scored_at, status=IDLE]         │
+     │                                                │
+     └── poll GET /api/records/<id> every 3s (≤60s) ◀──┘
+              on timeout → POST /reset-scoring/ → Retry
+```
+
+Flow:
+
+1. The record detail page POSTs `score-trigger/`. Django returns `202` and sets `scoring_status=PROCESSING` (a second trigger while processing → `409`; no edits since the last score → `400`).
+2. Django fires an async HTTP call (no queue, D-40) to the Lambda Function URL with the record JSON.
+3. Lambda asks Moonshot for `{score: 1-10, reason}` and POSTs it back to `PATCH /api/records/<id>/score/`, guarded by the shared `LAMBDA_SECRET` header.
+4. The frontend polls the record every 3s (≤60s); when the score lands it renders a color-coded badge (1–3 red, 4–6 yellow, 7–10 green) with the reason. On timeout it offers Retry, which calls `reset-scoring/` to un-stick the lock.
+
+**Stack:** Moonshot (LLM) → AWS Lambda (Python 3.12, Function URL) → Django DRF (callback + trigger/reset endpoints) → Next.js polling UI.
+
+**Backend env vars:** `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`. **Lambda env vars:** `MOONSHOT_API_KEY`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`, plus optional `MOONSHOT_API_URL` / `MOONSHOT_MODEL` (see [Configuration Reference](#configuration-reference) and [`lambda_scoring/README.md`](Django-CRM/lambda_scoring/README.md)).
+
 ## Usage
 
 ### REST API
@@ -211,20 +238,9 @@ Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are pub
 | `/records/[id]/edit` | Edit-record form | Yes |
 | `/reports` | Summary stats + tables (records per month, records by state) | Yes |
 
-### Legacy Web Routes (deprecated)
+### Legacy Web Routes (removed)
 
-| Route | Description | Auth Required |
-|---|---|---|
-| `/` | Home — login form (guest) or record list (authenticated) | No |
-| `/register/` | Create a new user account | No |
-| `/logout/` | Log out the current user | Yes |
-| `/record/<id>/` | View a single record's details | Yes |
-| `/add_record/` | Create a new record | Yes |
-| `/update_record/<id>/` | Edit an existing record | Yes |
-| `/delete_record/<id>/` | Delete a record | Yes |
-| `/admin/` | Django admin interface | Staff |
-
-> These Bootstrap/Django-template pages are **deprecated** and will be removed once the Next.js frontend covers their functionality (D-03).
+The original server-rendered Bootstrap UI was removed with the Next.js frontend migration (D-35); `/` now returns 404. Only `/api/` and `/admin/` are served.
 
 ## Configuration Reference
 
@@ -242,6 +258,12 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 | `DB_HOST` | PostgreSQL host | — |
 | `DB_PORT` | PostgreSQL port | `5432` |
 | `ALLOWED_HOSTS` | Allowed hostnames | Railway + localhost |
+| `LAMBDA_FUNCTION_URL` | AWS Lambda Function URL for lead scoring | — |
+| `LAMBDA_SECRET` | Shared secret validating the score callback | — |
+| `DJANGO_BASE_URL` | Public base URL Lambda uses for the callback | — |
+| `MOONSHOT_API_KEY` | Moonshot API key (Lambda) | — |
+| `MOONSHOT_API_URL` | Moonshot API endpoint (Lambda) | `https://api.moonshot.ai/v1/chat/completions` |
+| `MOONSHOT_MODEL` | Moonshot model (Lambda) | `moonshot-v1-8k` |
 
 > **Note:** `DEBUG` is env-driven via the `DEBUG` variable (`True` by default in dev); see `Django-CRM/.env.example` for the template. Set it to `False` before production deployment.
 
@@ -276,15 +298,17 @@ npm run lint       # ESLint
 
 ## Roadmap
 
-The project follows a phased plan tracked in `Django-CRM/mdfiles/PLAN.md`:
+The project follows a phased plan tracked in `Django-CRM/mdfiles/PLAN.md`. The previous feature (Next.js frontend + dashboard for the Django CRM, Phases 0–5 + Reporting + PR-review cleanup) is **completed** — see `Django-CRM/mdfiles/CHANGELOG.md`.
 
-- **Phase 0 — Backend API additions** ✅ Completed
-- **Phase 1 — Frontend scaffold** ✅ Completed
-- **Phase 2 — Auth (BFF proxy + cookie)** ✅ Completed
-- **Phase 3 — Dashboard (real stats data)** ✅ Completed
-- **Phase 4 — Records CRUD UI** ✅ Completed
-- **Phase 5 — Polish, deploy, deprecate legacy UI** ✅ Completed
-- **Reporting (API + page)** ✅ Completed
+**Current feature — AI Lead Scoring (Moonshot via AWS Lambda):**
+
+- **Phase 0 — Repo cleanup** ✅ Completed
+- **Phase 1 — DB migration + API fields** ✅ Completed
+- **Phase 2 — Trigger & reset endpoints** ✅ Completed
+- **Phase 3 — AWS Lambda** ✅ Completed
+- **Phase 4 — Frontend score display & trigger flow** ✅ Completed
+- **Phase 5 — Cleanup & docs** ✅ Completed
+- **Phase 6 — Deploy** 📋 Planned
 
 ## Documentation
 

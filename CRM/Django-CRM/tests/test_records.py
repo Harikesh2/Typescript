@@ -234,6 +234,8 @@ def test_records_list_returns_seeded(api_client, db):
     expected_fields = {
         'id', 'created_at', 'first_name', 'last_name', 'email',
         'phone', 'address', 'city', 'state', 'zipcode',
+        'description', 'ai_score', 'ai_reason', 'ai_scored_at',
+        'scoring_status', 'updated_at',
     }
     assert set(data[0].keys()) == expected_fields
     records = sorted(data, key=lambda r: r['first_name'])

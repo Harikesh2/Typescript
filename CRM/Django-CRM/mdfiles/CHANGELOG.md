@@ -2,6 +2,155 @@
 
 > Single changelog for all phase changes. Created once; append per phase. Follows `PLAN.md` (one phase at a time).
 
+## AI Lead Scoring — Phase 5: Cleanup & docs (2026-08-18)
+
+**Status:** COMPLETED · **Gate:** fresh clone + README instructions let a developer set up the feature — ✅ docs updated (2026-08-18, agent); `python -m pytest` ⏳ (docs-only change, no code touched; user confirms on next gate run)
+
+### Files touched
+
+- `Django-CRM/.env.example` (`MOONSHOT_API_KEY`, `MOONSHOT_API_URL`, `MOONSHOT_MODEL`)
+- `README.md` (root — status implemented, ASCII architecture kept, env var tables, roadmap phase statuses, live demo placeholder)
+- `Django-CRM/mdfiles/README.md` (AI Lead Scoring status → implemented + Moonshot env vars)
+- `Django-CRM/mdfiles/FEATURES.md` (planned list narrowed to Phase 6 deploy)
+- `Django-CRM/mdfiles/PLAN.md` (Phase 5 → COMPLETED)
+- `Django-CRM/mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **Error-handling audit** — walked every failure path (backend trigger/reset/callback, `lambda_trigger.py`, `lambda_function.py`, frontend `record-detail.tsx` polling/retry) and confirmed no silent failures: Lambda missing env → 500 with the var name; Moonshot/parse/callback failure → 500, record stays `PROCESSING`, frontend 60s timeout → Retry → `reset-scoring` un-sticks (D-49); trigger concurrent → 409; no-changes → 400; reset idempotent 200. **No code changes required** — the Phase 2–4 guards already cover every path.
+- **`.env.example`** — added the Lambda-side Moonshot vars that Phase 3 documented but the template never carried: `MOONSHOT_API_KEY` (required), `MOONSHOT_API_URL` (optional, defaults to `https://api.moonshot.ai/v1/chat/completions`), `MOONSHOT_MODEL` (default `moonshot-v1-8k`). `.env.example` now matches everything in `settings.py` + `lambda_function.py`.
+- **Root `README.md`** — AI Lead Scoring feature bullet + section status flipped **planned → implemented**; kept the existing ASCII architecture diagram and added a note that the live demo link lands with Phase 6 (deploy). Stack line now splits backend vs Lambda env vars and links `lambda_scoring/README.md`. Configuration Reference backend table gained the three `MOONSHOT_*` rows with their defaults. Roadmap updated: Phases 0–5 ✅, Phase 6 📋.
+- **`mdfiles/README.md`** — AI Lead Scoring status → implemented; env-var sentence now lists the Moonshot vars and points at `lambda_scoring/README.md`.
+- **`FEATURES.md`** — registry row 35 was already ✅ (Phases 0–4); the Planned section now reflects that only Phase 6 (deploy + live demo link) remains.
+- **`PLAN.md`** — Phase 5 marked COMPLETED with the audit summary and gate notes.
+
+### Verification
+
+- Gate is a fresh-clone docs walkthrough — all setup steps (`cp .env.example .env`, `migrate`, `runserver`, `npm run dev`, Lambda env var table) are present in README + `lambda_scoring/README.md`; `python -m pytest` unchanged (docs-only diff).
+
+## AI Lead Scoring — Phase 4: Frontend score display & trigger flow (2026-08-17)
+
+**Status:** COMPLETED · **Gate:** `npm run build` + `npm run lint` pass; manual e2e: create lead → score → poll → badge appears; edit description → score again → re-score; simultaneous clicks blocked (409) — ✅ all passed (2026-08-17, user)
+
+### Files touched
+
+- `frontend/src/lib/types.ts` (Record scoring fields + `RecordPayload` redefinition — D-51)
+- `frontend/src/components/crm/lead-score-badge.tsx` (new)
+- `frontend/src/components/crm/record-detail.tsx` (score button + polling + timeout/retry)
+- `frontend/src/components/crm/record-form.tsx` (optional `description` TextArea)
+- `mdfiles/PLAN.md` (Phase 4 → IN PROGRESS; decisions summary D-34 → D-52)
+- `mdfiles/DECISIONS.md` (D-51, D-52)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **`frontend/src/lib/types.ts`** — `Record` gained `description: string | null`, `ai_score: number | null`, `ai_reason: string | null`, `ai_scored_at: string | null`, `scoring_status: 'IDLE' | 'PROCESSING'`, `updated_at: string` (all mirror the serializer output). **D-51:** `RecordPayload` now omits `id`, `created_at`, `updated_at`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status` and pins `description: string` — the shared form validates every `RecordPayload` key, so the read-only score fields would otherwise be forced through required-validation and the nullable `description` would break `.trim()`. New `ScoringStatus` type.
+- **`frontend/src/components/crm/lead-score-badge.tsx` (new)** — renders a Primer `Label` colored by score (1–3 `danger`, 4–6 `attention`, 7–10 `success`) as `{score} / 10` plus the one-sentence `ai_reason`; returns `null` when `score === null`.
+- **`frontend/src/components/crm/record-detail.tsx`** — "Score Lead" button in the header action row (disabled while scoring/polling/`PROCESSING`), a `Spinner` + "Scoring…" while waiting, and a `StarIcon` leading visual. `POST /api/records/<id>/score-trigger/`: 202 → start 3s polling with a 60s deadline (D-42); 409 → "Scoring already in progress."; 400 → "No changes detected. Edit the lead to re-score."; other → generic message (backend `detail` preferred via `data?.detail`). Polling is a recursive `setTimeout` (`pollTimerRef`/`pollDeadlineRef`, cleared on unmount) that refetches the record until `ai_score != null` (updates the badge) or the deadline hits → error `Flash` + **Retry** button → `POST /api/records/<id>/reset-scoring/` → refetch + re-enable Score (D-49). **D-52:** the initial load resumes polling when `scoring_status === 'PROCESSING'`, so a refresh during an in-flight score picks up the callback instead of stranding the lock. Detail view also shows the new `description` field and the `LeadScoreBadge` under "AI score" (`—` when unscored).
+- **`frontend/src/components/crm/record-form.tsx`** — added an optional `description` `Textarea` (full-width below the 2-col grid, `FormControl.Caption` noting it feeds the AI prompt, `resize="vertical"`); `EMPTY_VALUES`/initial mapping include `description: ''` / `initial.description ?? ''`; the required-field loop skips `OPTIONAL_FIELDS = ['description']` so blank descriptions submit cleanly (D-51).
+
+### Verification
+
+- `npx tsc --noEmit` — ✅ clean (implementation-time sanity check). One fix on the first run: `RecordPayload.description` was `string | null` from the `Omit`, breaking `.trim()` and the `Textarea` `value` prop; pinned it to `string` in the type (D-51).
+- `npm run build` + `npm run lint` — ✅ both pass (2026-08-17, user).
+- Manual e2e: create lead → score → poll → badge appears; edit description → score again → re-score; simultaneous clicks blocked (409); timeout → Retry → reset re-enables Score — ✅ verified (2026-08-17, user).
+
+## AI Lead Scoring — Phase 3: AWS Lambda (2026-08-17)
+
+**Status:** COMPLETED · **Gate:** `python -m pytest` green; Lambda test returns a score and the callback lands in Django (local via ngrok or the deployed backend) — ✅ `python -m pytest` → 94 passed (2026-08-17, user); Lambda e2e ⏳ pending
+
+### Files touched
+
+- `Django-CRM/lambda_scoring/lambda_function.py` (new — D-46/D-47/D-48/D-49/D-50)
+- `Django-CRM/lambda_scoring/requirements.txt` (new)
+- `Django-CRM/lambda_scoring/README.md` (new)
+- `Django-CRM/lambda_scoring/__init__.py` (new)
+- `Django-CRM/tests/test_lambda.py` (new)
+- `mdfiles/PLAN.md` (Phase 3 → IN PROGRESS; decisions summary D-34 → D-50)
+- `mdfiles/DECISIONS.md` (D-46 → D-50)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **`lambda_scoring/lambda_function.py` (new, D-46)** — the dir is named `lambda_scoring` rather than `lambda` because `lambda` is a Python keyword and would make the handler un-importable by `tests/test_lambda.py`. `lambda_handler(event, context)`:
+  - `json.loads(event['body'])` → require `id`, else 400 `Missing record id in payload.`
+  - `build_prompt(payload)` renders every contact field + `description` (`PROMPT_FIELDS`); `build_request_payload(prompt)` wraps it in a system prompt asking for **JSON only** `{"score": 1-10, "reason": "one sentence ≤255 chars"}` (D-48), model `moonshot-v1-8k`.
+  - `call_moonshot(payload)` POSTs to `https://api.moonshot.ai/v1/chat/completions` (D-47 — Moonshot is OpenAI-compatible, user has a Moonshot subscription, no OpenAI/SDK) with `Authorization: Bearer <MOONSHOT_API_KEY>` via stdlib `urllib.request`, **25s timeout** (D-50), then `extract_score(data)` strips ```json fences, coerces score to int, validates 1–10 (else raises → 500), defaults/truncates reason to 255.
+  - On success POSTs `{ai_score, ai_reason}` to `{DJANGO_BASE_URL}/api/records/<id>/score/` with `X-Lambda-Secret` (D-41). Any exception → 500 (record stays `PROCESSING`; frontend 60s timeout + `reset-scoring` un-sticks — D-49); missing env var → 500 with the var name in the detail.
+  - `if __name__ == '__main__':` builds a sample test event and prints the result — runnable locally.
+- **`lambda_scoring/README.md`** — flow diagram, env var table (`MOONSHOT_API_KEY`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`, optional `MOONSHOT_API_URL`/`MOONSHOT_MODEL`), Lambda console deploy steps (Python 3.12, 256 MB, 30s, Function URL auth NONE), local test command + console test event JSON, failure behavior. `requirements.txt` is stdlib-only (comment only).
+- **`tests/test_lambda.py` (new)** — `build_prompt` includes all fields + description; `extract_score` clean JSON / fenced JSON / missing reason / 255-truncation / out-of-range ValueError / invalid JSON exception; `call_moonshot` posts to the right URL with `model=moonshot-v1-8k`, `Bearer` header, 25s timeout (monkeypatched `_post_json`, no network); `lambda_handler` success (callback URL/body/secret/timeout asserted), missing id → 400, missing `DJANGO_BASE_URL` → 500, Moonshot failure → 500.
+- No backend changes — `lambda_trigger.py`, the trigger view, and the callback endpoint from Phase 2 already complete the loop.
+
+### Verification
+
+- `python -m py_compile` on changed files — ✅ compiles (implementation-time sanity check).
+- `python -m pytest` — ✅ 94 passed (2026-08-17, user). One test bug found on the gate run and fixed in the same session: `test_extract_score_truncates_reason_to_255` built malformed JSON (`{"score": 5, "reason": "` + `x`*400 + `}` — missing the closing quote), so `json.loads` raised `Unterminated string` before the truncation logic ran. Fixed by closing the string (`...x*400 + '"}'`); the Lambda truncation itself was correct.
+- Lambda console: test event → returns a score and the callback lands in Django — ⏳ pending (user; needs `MOONSHOT_API_KEY` + `DJANGO_BASE_URL` reachable from AWS).
+
+## AI Lead Scoring — Phase 2: Trigger & reset endpoints (2026-08-17)
+
+**Status:** COMPLETED · **Gate:** `python -m pytest` green; Postman: trigger → 202; second trigger → 409; trigger after score without edits → 400; reset → 200 clears PROCESSING — ✅ `python -m pytest` → 81 passed (2026-08-17, user); Postman ⏳ pending
+
+### Files touched
+
+- `Django-CRM/.env.example` (`LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`)
+- `Django-CRM/dcrm/settings.py` (`LAMBDA_FUNCTION_URL`/`LAMBDA_SECRET` from env, empty default)
+- `Django-CRM/api/lambda_trigger.py` (new — D-40/D-45)
+- `Django-CRM/api/views.py` (3 stub views → real implementations)
+- `Django-CRM/tests/test_scoring.py` (stub tests removed; state-machine + callback + trigger-module tests)
+- `mdfiles/PLAN.md` (Phase 2 → IN PROGRESS)
+- `mdfiles/DECISIONS.md` (D-43, D-44, D-45)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **Env + settings** — `.env.example` documents `LAMBDA_FUNCTION_URL` (the Function URL Django POSTs the record to), `LAMBDA_SECRET` (shared secret the callback verifies), `DJANGO_BASE_URL` (the Lambda's callback target — documented for Phase 3; Django doesn't consume it). `dcrm/settings.py` reads `LAMBDA_FUNCTION_URL`/`LAMBDA_SECRET` with empty defaults so dev/pytest never need them (and `override_settings` makes them testable).
+- **`api/lambda_trigger.py` (new, D-40/D-45)** — `build_payload(record)` serializes the contact fields + `description` (no score state — the Lambda only needs lead context); `trigger_lead_scoring(record)` spawns a **daemon** `threading.Thread` running `_post_to_lambda(url, payload, secret)`, which POSTs JSON via stdlib `urllib.request` (`Content-Type: application/json`, `X-Lambda-Secret`, 35s timeout — above the 30s Lambda timeout) and logs failures without crashing. **No-op + warning when `LAMBDA_FUNCTION_URL` is unset** (D-45) — dev/pytest never fire a thread or hit the network.
+- **`POST /api/records/<pk>/score-trigger/`** — 404 missing → 409 `PROCESSING` → 400 `No changes detected. Edit the lead to re-score.` → else set `PROCESSING`, save, fire `trigger_lead_scoring`, **202**. Global `IsAuthenticatedOrReadOnly` keeps it anonymous → 401.
+- **`POST /api/records/<pk>/reset-scoring/`** — 404 missing → if `ai_score is None and PROCESSING`: set `IDLE` + save → 200 (frontend timeout retry); otherwise idempotent 200 (existing score preserved).
+- **`PATCH /api/records/<pk>/score/`** (Lambda callback) — `AllowAny` + `authentication_classes=[]`; missing/wrong `X-Lambda-Secret` header → 401 (D-41); 404 missing; `ai_score` must be an integer 1–10 else 400 (D-44); writes `ai_score`/`ai_reason` (truncated 255), then `Record.objects.filter(pk=...).update(ai_scored_at=record.updated_at)` — **D-43**: `QuerySet.update` bypasses `auto_now`, so `ai_scored_at == updated_at` and the trigger's `updated_at <= ai_scored_at → 400` guard fires until a real client edit advances `updated_at` (a plain `save()` would bump `updated_at` past `ai_scored_at` and permanently defeat the guard).
+- **Tests** — removed the 3 stub-501 tests; added: trigger 202→PROCESSING / 409 / 400-no-changes / 202-after-edit / 404; reset clears-PROCESSING / idempotent / keeps-score / 404; callback wrong-secret 401 / missing-secret 401 / valid-secret 200 writes + `ai_scored_at == updated_at` + IDLE / out-of-range 400 / 404; `build_payload` shape; `trigger_lead_scoring` no-op without URL; `_post_to_lambda` sends the right URL/method/body/secret/35s-timeout (via monkeypatched `urlopen`). View tests monkeypatch `api.views.trigger_lead_scoring` so no thread ever spawns. Existing `test_scoring_endpoints_require_auth` stays green (callback without secret → 401).
+
+### Verification
+
+- `python -m py_compile` on changed files — ✅ compiles (implementation-time sanity check).
+- `python -m pytest` — ✅ 81 passed (2026-08-17, user). Two test bugs found on the first gate run and fixed in the same session: `get_header('X-Lambda-Secret')` asserted None (urllib stores headers via `key.capitalize()`, so the canonical read is `get_header('X-lambda-secret')`; production unaffected — the wire sends the header and Django/Lambda read it case-insensitively) and `test_score_callback_missing_record_returns_404` lacked the `db` fixture (RuntimeError on `get_object_or_404` DB access).
+- Postman: trigger → 202; second trigger → 409; trigger after score without edits → 400; reset → 200 clears PROCESSING — ⏳ pending (user).
+
+## AI Lead Scoring — Phase 1: DB migration + API fields (2026-08-17)
+
+**Status:** COMPLETED · **Gate:** migration applies; `description` visible in the API; `python -m pytest` green — ✅ 67 passed (2026-08-17)
+
+### Files touched
+
+- `Django-CRM/website/models.py` (6 new `Record` fields — D-36/D-37)
+- `Django-CRM/website/migrations/0002_record_ai_reason_record_ai_score_record_ai_scored_at_and_more.py` (new)
+- `Django-CRM/api/serializers.py` (`read_only_fields` — D-38)
+- `Django-CRM/api/views.py` (3 stub views → 501)
+- `Django-CRM/api/urls.py` (3 new routes)
+- `Django-CRM/tests/test_records.py` (exact field-set assertion updated)
+- `Django-CRM/tests/test_scoring.py` (new)
+- `mdfiles/PLAN.md` (Phase 1 → IN PROGRESS)
+- `mdfiles/CHANGELOG.md`
+
+### Changes made
+
+- **Model (D-36/D-37)** — `Record` gained `description` (`TextField`, blank/null), `ai_score` (`IntegerField`, null), `ai_reason` (`CharField` 255, null), `ai_scored_at` (`DateTimeField`, null), `scoring_status` (`CharField`, choices `IDLE`/`PROCESSING`, default `IDLE`), `updated_at` (`DateTimeField(auto_now=True)`, D-37 — drives the Phase 2 no-changes 400 check).
+- **Migration** — `makemigrations website` generated `0002_record_ai_reason_record_ai_score_record_ai_scored_at_and_more.py`; applies cleanly on in-memory SQLite.
+- **Serializer (D-38)** — `RecordSerializer.read_only_fields` now includes `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`, so only the Lambda callback (Phase 2) can write them. `description` stays read/write; `created_at`/`updated_at` remain auto read-only (`editable=False`).
+- **Endpoints registered (stubs, 501)** — `RecordScoreCallbackAPIView` (`PATCH records/<pk>/score/`), `RecordScoreTriggerAPIView` (`POST records/<pk>/score-trigger/`), `RecordResetScoringAPIView` (`POST records/<pk>/reset-scoring/`) each return `501 Not implemented yet.`. URL wiring + test infra proven now; Phase 2 fills in the bodies (409/400/secret-gated callback).
+- **`test_records.py` fix** — the list endpoint's exact field-set assertion extended with the 6 new serializer fields (adding fields broke the old `==` set comparison).
+- **New `tests/test_scoring.py`** — URL resolution for all 3 routes; `description` writable (POST/PATCH) + visible; `scoring_status` defaults to `IDLE`; forged score fields ignored on create AND patch (read-only enforcement); `updated_at` present, auto-managed (advances on PATCH), not client-settable; stubs → 501 authenticated / 401 anonymous.
+
+### Verification
+
+- `USE_SQLITE=1 python3 manage.py makemigrations website` — ✅ `0002_...` created.
+- `USE_SQLITE=1 python3 manage.py migrate` — ✅ applies cleanly (in-memory SQLite).
+- `USE_SQLITE=1 python3 manage.py check` — ✅ no issues.
+- `python -m pytest` — ✅ 67 passed (2026-08-17, user).
+- `description` visible in the API — ✅ (covered by `test_scoring.py`).
+
 ## PR review `new_ui` — closed out (2026-08-15)
 
 **Status:** COMPLETE
@@ -385,3 +534,60 @@
 ### Verification
 
 - ✅ COMPLETED — folded into the Phase 5 gate: `python -m pytest`, `npm run build`, `npm run lint`, and e2e smoke all pass (2026-08-13).
+
+## Phase 0 — Repo cleanup (2026-08-15)
+
+**Status:** COMPLETED · **Gate:** `python -m pytest` green; `/records` shows real DB data; `/` returns 404 (no legacy UI)
+
+### Files touched
+
+- `Django-CRM/mydb.py` (deleted — orphaned MySQL helper, obsolete after D-24)
+- `Django-CRM/website/templates/` (deleted — all legacy Bootstrap templates)
+- `Django-CRM/website/views.py` (deleted — function-based views)
+- `Django-CRM/website/forms.py` (deleted)
+- `Django-CRM/website/urls.py` (deleted)
+- `Django-CRM/dcrm/urls.py` (removed `path('', include('website.urls'))` mount)
+- `README.md` (root — dropped legacy UI feature bullet, `mydb.py` references, "Legacy Web Routes" table, `/` mention; slimmed `website/` structure block)
+- `Django-CRM/mdfiles/README.md` ("website app untouched" line → legacy UI removed note)
+- `AGENTS.md` (root — stale "legacy templates exist" lines → removed legacy UI, updated `website/` description)
+- `Django-CRM/mdfiles/PLAN.md` (Phase 0 → IN PROGRESS)
+- `Django-CRM/mdfiles/CHANGELOG.md`
+- `Django-CRM/mdfiles/FEATURES.md`
+
+### Changes made
+
+- **Legacy UI removed (D-35, supersedes D-03)** — deleted `mydb.py`, `website/templates/` (7 Bootstrap templates), and the function-based `website/views.py`/`forms.py`/`urls.py`. Removed the `path('', include('website.urls'))` mount from `dcrm/urls.py`; root URLconf now serves `/api/` and `/admin/` only (`/` → 404). The `website` app itself stays — it hosts the `Record` model, `admin.py`, `checks.py`, and the `healthcheck` command.
+- **Docs de-crufted** — root README dropped the deprecated-UI feature bullet, the `mydb.py` lines (project structure + Getting Started), the "Legacy Web Routes" table (replaced with a short "(removed)" note), and the "legacy UI at :8000/" mention; the `website/` structure block now lists only model/admin/checks/migrations/management. `mdfiles/README.md` and `AGENTS.md` updated to reflect that no legacy UI remains.
+- **Verified safe** — no test or code references `website.views`/`website.forms`/`website.urls`; tests import only `website.models.Record`; nothing in the frontend calls legacy routes.
+
+### Verification
+
+- `python -m pytest` — ✅ 52 passed (2026-08-15).
+- `/records` loads real DB data via Django — ⏳ pending (user).
+- `/` returns 404 / no longer serves legacy UI — ⏳ pending (user).
+
+## AI Lead Scoring — plan created (2026-08-15)
+
+**Status:** PLAN (docs only — no code yet) · **Gate:** N/A (documentation pass)
+
+### Files touched
+
+- `Django-CRM/mdfiles/PLAN.md` (rewritten for the AI Lead Scoring feature, Phases 0–6)
+- `Django-CRM/mdfiles/DECISIONS.md` (D-34 → D-42)
+- `Django-CRM/mdfiles/CHANGELOG.md`
+- `Django-CRM/mdfiles/README.md` (API surface + blurb)
+- `Django-CRM/mdfiles/FEATURES.md` (planned registry row)
+- `README.md` (root — AI Lead Scoring section + roadmap)
+
+### Changes made
+
+- New feature plan created from the user's spec: **AI Lead Scoring** via Moonshot + AWS Lambda. Day-by-day labels and AI-generated filler stripped; spec reconciled against the real codebase:
+  - `Record` has no scoring fields and no `updated_at` — both added to Phase 1 (D-37).
+  - No score callback endpoint exists — all three endpoints (`PATCH /score/`, `POST /score-trigger/`, `POST /reset-scoring/`) are new, not "already exists" as the spec claimed.
+  - Phase 0 "wire mock data to real API" was already done (the legacy contacts mock was deleted in the Phase 6 PR-review round); kept only the remaining real cleanup (`mydb.py`, `website/templates/`, legacy views/routes).
+- Decisions D-34 → D-42 appended: feature kickoff; legacy UI removal superseding D-03; model/migration changes allowed; `updated_at`; read-only score fields; 409/400 concurrency semantics; threading fire-and-forget; secret-gated callback; polling strategy.
+- READMEs updated with the new endpoints + an "AI Lead Scoring" section; FEATURES.md gains a planned registry row.
+
+### Verification
+
+- ⏳ Pending — documentation-only; phase gates apply from Phase 0 onward (user runs `pytest`/`build`/`lint`).

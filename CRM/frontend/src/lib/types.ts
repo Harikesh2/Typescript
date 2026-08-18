@@ -1,3 +1,5 @@
+export type ScoringStatus = 'IDLE' | 'PROCESSING'
+
 export type Record = {
   id: number
   created_at: string
@@ -9,6 +11,12 @@ export type Record = {
   city: string
   state: string
   zipcode: string
+  description: string | null
+  ai_score: number | null
+  ai_reason: string | null
+  ai_scored_at: string | null
+  scoring_status: ScoringStatus
+  updated_at: string
 }
 
 export type RecordsPage = {
@@ -18,7 +26,16 @@ export type RecordsPage = {
   results: Record[]
 }
 
-export type RecordPayload = Omit<Record, 'id' | 'created_at'>
+export type RecordPayload = Omit<
+  Record,
+  | 'id'
+  | 'created_at'
+  | 'updated_at'
+  | 'ai_score'
+  | 'ai_reason'
+  | 'ai_scored_at'
+  | 'scoring_status'
+> & { description: string }
 
 export type StatsData = {
   total_records: number

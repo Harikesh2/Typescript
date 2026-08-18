@@ -11,7 +11,13 @@ class RecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = Record
         fields = '__all__'
-        read_only_fields = ('created_at',)
+        read_only_fields = (
+            'created_at',
+            'ai_score',
+            'ai_reason',
+            'ai_scored_at',
+            'scoring_status',
+        )
 
 
 class UserSerializer(serializers.ModelSerializer):
