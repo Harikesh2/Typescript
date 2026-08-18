@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, FormControl, Stack, TextInput } from '@primer/react'
+import { Button, FormControl, Stack, TextInput, Textarea } from '@primer/react'
 import type { Record, RecordPayload } from '@/lib/types'
 
 type FormErrors = Partial<{ [K in keyof RecordPayload]: string }> & {
@@ -23,7 +23,10 @@ const EMPTY_VALUES: RecordPayload = {
   city: '',
   state: '',
   zipcode: '',
+  description: '',
 }
+
+const OPTIONAL_FIELDS: (keyof RecordPayload)[] = ['description']
 
 function fieldError(
   errors: FormErrors,
@@ -45,6 +48,7 @@ export function RecordForm({ initial, submitLabel, onSubmit }: Props) {
           city: initial.city,
           state: initial.state,
           zipcode: initial.zipcode,
+          description: initial.description ?? '',
         }
       : EMPTY_VALUES,
   )
@@ -67,7 +71,7 @@ export function RecordForm({ initial, submitLabel, onSubmit }: Props) {
     })
 
     fields.forEach((field) => {
-      if (!trimmed[field]) {
+      if (!OPTIONAL_FIELDS.includes(field) && !trimmed[field]) {
         nextErrors[field] = 'This field is required'
       }
     })
@@ -239,6 +243,28 @@ export function RecordForm({ initial, submitLabel, onSubmit }: Props) {
             ) : null}
           </FormControl>
         </div>
+
+        <FormControl>
+          <FormControl.Label>Description</FormControl.Label>
+          <FormControl.Caption>
+            Optional context used by the AI lead scoring prompt.
+          </FormControl.Caption>
+          <Textarea
+            name="description"
+            block
+            resize="vertical"
+            value={values.description}
+            onChange={(e) => setValue('description', e.target.value)}
+            validationStatus={
+              fieldError(errors, 'description') ? 'error' : undefined
+            }
+          />
+          {fieldError(errors, 'description') ? (
+            <FormControl.Validation variant="error">
+              {fieldError(errors, 'description')}
+            </FormControl.Validation>
+          ) : null}
+        </FormControl>
 
         {errors.non_field_errors ? (
           <FormControl.Validation variant="error">

@@ -1,0 +1,2 @@
+# No third-party dependencies.
+# Moonshot is called over HTTP via the stdlib `urllib.request` (D-45-style).

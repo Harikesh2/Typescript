@@ -46,7 +46,7 @@ Status: ✅ Implemented · 🚧 In progress · 📋 Planned
 | 32 | Legacy UI removed | `website/templates/`, `website/views.py`, `website/forms.py`, `website/urls.py`, `mydb.py` | ✅ | 0 | 2026-08-15 | D-35 supersedes D-03; `/` now 404 |
 | 33 | PostgreSQL runtime DB | `dcrm/settings.py`, compose `postgres:16` | ✅ | — | 2026-08-13 | D-24; `psycopg2-binary`; SQLite stays for tests only |
 | 34 | DB schema healthcheck | `python manage.py healthcheck` + `website/checks.py` + compose gate | ✅ | — | 2026-08-13 | D-25; detect-and-fail; Warning-level system check; skipped on SQLite |
-| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | 🚧 | 0–6 | 2026-08-15 | Moonshot via Lambda; Phase 0 cleanup + Phase 1 model/API fields + Phase 2 trigger/reset/callback done (D-34 → D-45); Lambda/frontend pending |
+| 35 | AI Lead Scoring | `PATCH /records/<pk>/score/`, `POST /score-trigger/`, `POST /reset-scoring/` | ✅ | 0–4 | 2026-08-15 | Moonshot via Lambda; Phases 0–4 done (D-34 → D-52): cleanup, model/API fields, trigger/reset/callback, Lambda, frontend scoring UI — all gates green |
 
 ## Implemented features (detailed)
 
@@ -135,9 +135,22 @@ Model `website.models.Record` — **no model or migration changes**; API is addi
 - **Callback (`PATCH /api/records/<pk>/score/`)** — `AllowAny` but secret-gated: missing/wrong `X-Lambda-Secret` → 401 (D-41); validates `ai_score` 1–10 (D-44); writes score/reason and aligns `ai_scored_at = updated_at` via `QuerySet.update` so the 400 guard stays exact (D-43); sets `IDLE`.
 - **`api/lambda_trigger.py`** — `threading.Thread` fire-and-forget POST via stdlib `urllib.request` (D-40/D-45); no-op without `LAMBDA_FUNCTION_URL`. Env vars: `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (`.env.example`). Status: ✅ Phase 2 COMPLETED (2026-08-17, `python -m pytest` → 81 passed; Postman manual flow pending).
 
+### AI Lead Scoring (Phase 3)
+
+- **`lambda_scoring/lambda_function.py` (new)** — the dir is `lambda_scoring` not `lambda` (Python keyword — un-importable by pytest, D-46). `lambda_handler(event, context)`: requires `id` from `event['body']` (else 400), builds a prompt from the contact fields + `description`, calls Moonshot directly (`POST https://api.moonshot.ai/v1/chat/completions`, model `moonshot-v1-8k`, `Authorization: Bearer <MOONSHOT_API_KEY>`) via stdlib `urllib.request` (no SDK, 25s timeout, D-47/D-50), parses `{"score": 1-10, "reason": "≤255 chars"}` defensively (strips ```json fences, validates score, truncates reason — D-48), and POSTs the result to `{DJANGO_BASE_URL}/api/records/<id>/score/` with `X-Lambda-Secret` (D-41). Any failure → 500, record stays `PROCESSING`; the frontend's 60s timeout + `reset-scoring` retry un-sticks it (D-49). Env vars: `MOONSHOT_API_KEY`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (+ optional `MOONSHOT_API_URL`/`MOONSHOT_MODEL`).
+- **`lambda_scoring/README.md`** — deploy steps (Python 3.12, 256 MB, 30s, Function URL auth NONE), local test command + console test event, failure behavior. `requirements.txt` is stdlib-only.
+- **Tests** — `tests/test_lambda.py`: prompt build, parse edge cases (fenced JSON, missing reason, 255-truncation, out-of-range/invalid → error), `call_moonshot` URL/model/Bearer header/25s timeout, `lambda_handler` success (callback URL/body/secret asserted) + 400 missing id + 500 missing env + 500 scoring failure — HTTP mocked, no network. Status: ✅ Phase 3 COMPLETED (2026-08-17, `python -m pytest` → 94 passed; Lambda e2e pending).
+
+### AI Lead Scoring (Phase 4)
+
+- **Scoring UI on `/records/[id]`** — `RecordDetail` gains a "Score Lead" button (disabled while scoring/polling/`PROCESSING`), a `Spinner` + "Scoring…" while waiting, and a color-coded score badge once `ai_score` lands. POST → `score-trigger`; 409 → "Scoring already in progress.", 400 → "No changes detected. Edit the lead to re-score."; 202 → poll `GET /api/records/<pk>/` every 3s up to 60s (D-42); timeout → error + **Retry** → `reset-scoring` → re-enable (D-49). Resume-polling on load when `PROCESSING` (D-52). Detail view also shows `description`.
+- **`LeadScoreBadge`** — Primer `Label` colored by band (1–3 `danger`, 4–6 `attention`, 7–10 `success`) rendering `{score} / 10` plus the one-sentence `ai_reason`.
+- **Optional `description` field in the shared form** — full-width `Textarea`, excluded from required validation, feeds the Moonshot prompt and the "edit description → re-score" gate (D-51).
+- **Shared types** — `Record` extended with `description`/`ai_score`/`ai_reason`/`ai_scored_at`/`scoring_status`/`updated_at`; `RecordPayload` omits all read-only/auto fields and types `description: string` (D-51). Status: ✅ Phase 4 COMPLETED (2026-08-17; `npm run build` + `npm run lint` + manual e2e all pass).
+
 ## Planned / next features
 
-- [ ] AI Lead Scoring (Phases 0–6) — Moonshot via AWS Lambda: manual trigger with 409/400 guards, 3s polling, color-coded badge, reset on timeout
+- [ ] AI Lead Scoring (Phase 6 — deploy) — Moonshot via AWS Lambda: Phases 0–5 complete (manual trigger with 409/400 guards, 3s polling, color-coded badge, reset on timeout; cleanup/docs done). Next: deploy Django (Railway/Render) + Lambda to production and add the live demo link.
 - [ ] <Another feature>
 
 ## How to add a feature

@@ -28,7 +28,7 @@ Writes require DRF Token auth (`HTTP_AUTHORIZATION: Token <key>`); reads are pub
 
 Records carry optional scoring fields (`description`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`) plus `updated_at`. A manual `score-trigger` locks the record (`PROCESSING`, concurrent triggers → 409) and forwards it to an AWS Lambda that asks Moonshot for a 1–10 score + one-sentence reason, then POSTs the result back to the `score/` callback. A `reset-scoring` endpoint un-sticks the lock after a timeout.
 
-Environment variables (see `.env.example`): `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (the base URL Lambda uses for the callback). Status: **planned** — see [PLAN.md](PLAN.md) Phases 0–6.
+Environment variables (see `.env.example`): `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (the base URL Lambda uses for the callback); the Lambda additionally needs `MOONSHOT_API_KEY` (+ optional `MOONSHOT_API_URL`/`MOONSHOT_MODEL`, see `lambda_scoring/README.md`). Status: **implemented** — Phases 0–5 done, see [PLAN.md](PLAN.md) (deploy = Phase 6).
 
 ## Quick start
 

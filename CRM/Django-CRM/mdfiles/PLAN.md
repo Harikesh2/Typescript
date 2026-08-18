@@ -33,7 +33,7 @@ Score each CRM lead 1–10 with a one-sentence reason using the Moonshot LLM. A 
 
 ## Decisions
 
-See `DECISIONS.md` for full rationale (D-34 → D-45). Summary: feature kickoff (D-34); remove legacy website UI, superseding D-03 (D-35); `Record` model + migration changes now allowed for this feature (D-36); add `updated_at=auto_now` for the re-score check (D-37); score fields read-only, only the Lambda callback writes them (D-38); concurrency lock via `scoring_status=PROCESSING` → 409, no-changes → 400 (D-39); fire-and-forget trigger via `threading`, no task queue (D-40); callback gated by a shared `LAMBDA_SECRET` header (D-41); frontend polls 3s / 60s then `reset-scoring` retry (D-42); callback aligns `ai_scored_at = updated_at` so the 400 guard stays exact (D-43); callback validates `ai_score` 1–10 (D-44); `lambda_trigger.py` uses stdlib `urllib.request` and no-ops without `LAMBDA_FUNCTION_URL` (D-45).
+See `DECISIONS.md` for full rationale (D-34 → D-52). Summary: feature kickoff (D-34); remove legacy website UI, superseding D-03 (D-35); `Record` model + migration changes now allowed for this feature (D-36); add `updated_at=auto_now` for the re-score check (D-37); score fields read-only, only the Lambda callback writes them (D-38); concurrency lock via `scoring_status=PROCESSING` → 409, no-changes → 400 (D-39); fire-and-forget trigger via `threading`, no task queue (D-40); callback gated by a shared `LAMBDA_SECRET` header (D-41); frontend polls 3s / 60s then `reset-scoring` retry (D-42); callback aligns `ai_scored_at = updated_at` so the 400 guard stays exact (D-43); callback validates `ai_score` 1–10 (D-44); `lambda_trigger.py` uses stdlib `urllib.request` and no-ops without `LAMBDA_FUNCTION_URL` (D-45); Lambda code in `lambda_scoring/` not `lambda/` (Python keyword, D-46); Lambda calls Moonshot directly via OpenAI-compatible endpoint, model `moonshot-v1-8k`, stdlib HTTP (D-47); prompt asks for JSON `{score, reason}` with defensive parsing (D-48); failures → 500, record stays PROCESSING, frontend reset unsticks (D-49); 25s HTTP timeout under the 30s Lambda budget (D-50); `RecordPayload` omits read-only fields and the shared form gains an optional `description` field (D-51); resume polling on mount when a score is already PROCESSING (D-52).
 
 ## Phases
 
@@ -76,33 +76,37 @@ See `DECISIONS.md` for full rationale (D-34 → D-45). Summary: feature kickoff 
 - `PATCH score/` (Lambda callback): `AllowAny` + `authentication_classes=[]`, verify `LAMBDA_SECRET` header (D-41); validate `ai_score` 1–10 (D-44); update `ai_score`, `ai_reason`, `ai_scored_at` (= `updated_at` via `QuerySet.update`, D-43); set `scoring_status = 'IDLE'`.
 - **Gate:** `python -m pytest` green ✅ (81 passed, 2026-08-17, user); Postman: trigger → 202; second trigger → 409; trigger after score without edits → 400; reset → 200 clears PROCESSING — ⏳ pending (user).
 
-### Phase 3 — AWS Lambda — NOT STARTED
+### Phase 3 — AWS Lambda — COMPLETED
 
-- Lambda (Python 3.12, 256 MB, 30s timeout) with Function URL (auth NONE); shared `LAMBDA_SECRET` sent on the callback.
-- `lambda_function.py` — receive the record payload, build the prompt including `description`, call Moonshot, parse `{score, reason}`, POST to `{DJANGO_BASE_URL}/api/records/<id>/score/` with the secret header.
-- Env vars: `MOONSHOT_API_KEY`, `LAMBDA_SECRET`.
-- Test with a test event (payload includes `description`).
-- **Gate:** Lambda test returns a score and the callback lands in Django (local via ngrok or the deployed backend).
+- New `Django-CRM/lambda_scoring/` dir (named `lambda_scoring`, not `lambda` — `lambda` is a Python keyword and would be un-importable by pytest, D-46): `lambda_function.py`, `requirements.txt`, `README.md`.
+- `lambda_function.py` — `lambda_handler(event, context)` reads the record payload from `event['body']`, builds a prompt (all contact fields + `description`), calls Moonshot directly (`POST https://api.moonshot.ai/v1/chat/completions`, model `moonshot-v1-8k`, `Authorization: Bearer <MOONSHOT_API_KEY>`) via stdlib `urllib.request` (no SDK, 25s timeout — D-50), parses `{score, reason}` defensively (strips markdown fences, coerces score int, validates 1–10, truncates reason to 255 — D-47/D-48), and POSTs to `{DJANGO_BASE_URL}/api/records/<id>/score/` with `X-Lambda-Secret` (D-41).
+- Env vars: `MOONSHOT_API_KEY`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (+ optional `MOONSHOT_API_URL`, `MOONSHOT_MODEL`).
+- Failure handling: Moonshot/parse/callback error → return 500, record stays `PROCESSING`; frontend 60s timeout → `reset-scoring` un-sticks (D-49, reuses D-42). Missing env var → 500 with a clear detail.
+- Test with a Lambda console test event (payload includes `description`).
+- New `tests/test_lambda.py` — `build_prompt`, `extract_score` (clean JSON, fenced JSON, missing reason, truncation, out-of-range, invalid JSON), `call_moonshot` headers/URL/timeout, `lambda_handler` success/missing-id/missing-env/scoring-failure — HTTP mocked, no network.
+- **Gate:** `python -m pytest` green ✅ (94 passed, 2026-08-17, user — after fixing the `test_lambda.py` truncation fixture's unterminated-JSON bug); Lambda test returns a score and the callback lands in Django (local via ngrok or the deployed backend) — ⏳ pending (user).
 
-### Phase 4 — Frontend score display & trigger flow — NOT STARTED
+### Phase 4 — Frontend score display & trigger flow — COMPLETED
 
-- Extend `frontend/src/lib/types.ts` (`description`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`, `updated_at`).
+- Extend `frontend/src/lib/types.ts` (`description`, `ai_score`, `ai_reason`, `ai_scored_at`, `scoring_status`, `updated_at`). `RecordPayload` omits the read-only/auto fields and types `description` as a plain `string` (D-51).
 - `frontend/src/components/crm/record-detail.tsx`:
   - "Score Lead" button (disabled while polling / when PROCESSING); spinner + "Scoring…" while waiting.
   - POST `/api/records/<id>/score-trigger/`; 409 → "Scoring already in progress", 400 → "No changes — edit to re-score".
   - Poll `GET /api/records/<id>/` every 3s until `ai_score != null` or 60s (D-42).
   - Timeout → "Something went wrong" + Retry button → `POST /reset-scoring/` → re-enable Score.
+  - Resume polling on mount when `scoring_status == 'PROCESSING'` so a refresh during an in-flight score doesn't strand the lock (D-52).
 - New `frontend/src/components/crm/lead-score-badge.tsx` — badge 1–3 red, 4–6 yellow, 7–10 green + reason.
+- `frontend/src/components/crm/record-form.tsx` — optional `description` TextArea (excluded from required validation; feeds the AI prompt and the "edit description → re-score" gate, D-51).
 - Button stays visible after scoring; the backend blocks if there are no changes.
-- **Gate:** `npm run build` + `npm run lint` pass; manual e2e: create lead → score → poll → badge appears; edit description → score again → re-score; simultaneous clicks blocked (409).
+- **Gate:** `npm run build` + `npm run lint` pass ✅ (2026-08-17, user); manual e2e: create lead → score → poll → badge appears; edit description → score again → re-score; simultaneous clicks blocked (409); timeout → Retry → reset — ✅ (2026-08-17, user).
 
-### Phase 5 — Cleanup & docs — NOT STARTED
+### Phase 5 — Cleanup & docs — COMPLETED
 
-- Error-handling audit — all failures silent (record still saves; no UI crash).
-- Update `Django-CRM/.env.example` with all new variables.
-- README: add "AI Lead Scoring" section (ASCII architecture, stack, live demo link).
-- Update FEATURES.md (scoring rows → ✅).
-- **Gate:** fresh clone + README instructions let a developer set up the feature.
+- Error-handling audit — all failure paths silent (record still saves; no UI crash): Lambda missing env → 500 with detail; Moonshot/parse/callback failure → 500, record stays PROCESSING, frontend reset unsticks (D-49); trigger concurrent → 409; no changes → 400; reset idempotent 200; polling timeout → Retry → reset-scoring. No code changes needed — audit confirmed the Phase 2–4 guards already cover every path.
+- Update `Django-CRM/.env.example` with all new variables: `MOONSHOT_API_KEY`, `MOONSHOT_API_URL` (optional), `MOONSHOT_MODEL` (default `moonshot-v1-8k`).
+- README (root + `mdfiles/README.md`): "AI Lead Scoring" section updated — ASCII architecture, stack (Moonshot → AWS Lambda → Django DRF → Next.js), env var tables, live demo link placeholder (deploy pending, Phase 6).
+- Update FEATURES.md (scoring rows → ✅; registry row 35 already ✅; planned list narrowed to Phase 6 deploy).
+- **Gate:** fresh clone + README instructions let a developer set up the feature — ✅ docs updated (2026-08-18, agent); `python -m pytest` still green ⏳ (no code changed — docs only, user confirms on next gate run).
 
 ### Phase 6 — Deploy — NOT STARTED
 

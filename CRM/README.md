@@ -30,7 +30,7 @@ A customer relationship management application structured as a monorepo: a Djang
 - **Auth API** — `POST /api/auth/register/` and `/api/auth/token/` issue tokens; `GET /api/auth/me/` returns the current user.
 - **Next.js frontend** — App Router + TypeScript app built on GitHub Primer, with login, register, dashboard, and records routes.
 - **BFF proxy auth** — Browser JS never touches the token: the Next.js proxy stores it in an httpOnly cookie and injects `Authorization: Token <key>` on proxied API calls.
-- **AI Lead Scoring (planned)** — Score leads 1–10 with a one-sentence reason via Moonshot + AWS Lambda; manual trigger, polling UI, and a color-coded badge.
+- **AI Lead Scoring** — Score leads 1–10 with a one-sentence reason via Moonshot + AWS Lambda; manual trigger, polling UI, and a color-coded badge.
 - **Test suite** — pytest + pytest-django on in-memory SQLite (no local database needed).
 - **CI** — monorepo workflow at [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the backend suite (`python -m pytest`) on every push/PR to `main` affecting `CRM/Django-CRM/**`.
 
@@ -179,7 +179,7 @@ This starts:
 
 ## AI Lead Scoring
 
-Each lead can be scored 1–10 with a one-sentence reason using the Moonshot LLM, triggered manually from the record detail page. Status: **planned** — implemented across Phases 0–6 in [`Django-CRM/mdfiles/PLAN.md`](Django-CRM/mdfiles/PLAN.md).
+Each lead can be scored 1–10 with a one-sentence reason using the Moonshot LLM, triggered manually from the record detail page. Status: **implemented** — Phases 0–5 complete (deploy pending, see [`Django-CRM/mdfiles/PLAN.md`](Django-CRM/mdfiles/PLAN.md)). Live demo: pending deployment (Phase 6).
 
 ```
  Score Lead           record payload               PROMPT (incl. description)          score + reason
@@ -204,7 +204,7 @@ Flow:
 
 **Stack:** Moonshot (LLM) → AWS Lambda (Python 3.12, Function URL) → Django DRF (callback + trigger/reset endpoints) → Next.js polling UI.
 
-**Backend env vars:** `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL` (see [Configuration Reference](#configuration-reference)).
+**Backend env vars:** `LAMBDA_FUNCTION_URL`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`. **Lambda env vars:** `MOONSHOT_API_KEY`, `LAMBDA_SECRET`, `DJANGO_BASE_URL`, plus optional `MOONSHOT_API_URL` / `MOONSHOT_MODEL` (see [Configuration Reference](#configuration-reference) and [`lambda_scoring/README.md`](Django-CRM/lambda_scoring/README.md)).
 
 ## Usage
 
@@ -261,6 +261,9 @@ All backend configuration is environment-driven. Key settings in `Django-CRM/dcr
 | `LAMBDA_FUNCTION_URL` | AWS Lambda Function URL for lead scoring | — |
 | `LAMBDA_SECRET` | Shared secret validating the score callback | — |
 | `DJANGO_BASE_URL` | Public base URL Lambda uses for the callback | — |
+| `MOONSHOT_API_KEY` | Moonshot API key (Lambda) | — |
+| `MOONSHOT_API_URL` | Moonshot API endpoint (Lambda) | `https://api.moonshot.ai/v1/chat/completions` |
+| `MOONSHOT_MODEL` | Moonshot model (Lambda) | `moonshot-v1-8k` |
 
 > **Note:** `DEBUG` is env-driven via the `DEBUG` variable (`True` by default in dev); see `Django-CRM/.env.example` for the template. Set it to `False` before production deployment.
 
@@ -299,12 +302,12 @@ The project follows a phased plan tracked in `Django-CRM/mdfiles/PLAN.md`. The p
 
 **Current feature — AI Lead Scoring (Moonshot via AWS Lambda):**
 
-- **Phase 0 — Repo cleanup** 📋 Planned
-- **Phase 1 — DB migration + API fields** 📋 Planned
-- **Phase 2 — Trigger & reset endpoints** 📋 Planned
-- **Phase 3 — AWS Lambda** 📋 Planned
-- **Phase 4 — Frontend score display & trigger flow** 📋 Planned
-- **Phase 5 — Cleanup & docs** 📋 Planned
+- **Phase 0 — Repo cleanup** ✅ Completed
+- **Phase 1 — DB migration + API fields** ✅ Completed
+- **Phase 2 — Trigger & reset endpoints** ✅ Completed
+- **Phase 3 — AWS Lambda** ✅ Completed
+- **Phase 4 — Frontend score display & trigger flow** ✅ Completed
+- **Phase 5 — Cleanup & docs** ✅ Completed
 - **Phase 6 — Deploy** 📋 Planned
 
 ## Documentation
